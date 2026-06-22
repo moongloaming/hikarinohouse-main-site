@@ -34,10 +34,18 @@
 
 ## 客服知識庫（常見問題）
 
-- [包裹查詢](https://hikarinohouse.com/help/package-search.html)：查看包裹是否到日本倉庫，以及在庫查詢、出庫查詢與集運出貨狀態。
-- [付款／費用](https://hikarinohouse.com/help/payment-fees.html)：費用確認、付款方式與儲值金。
-- [日本包裹空運集運](https://hikarinohouse.com/help/air-shipping.html)：日本收貨、整理、合併與空運回台灣的集運出貨流程。
+- [包裹查詢](https://hikarinohouse.com/help/package-search.html)：查看包裹是否到日本倉庫與目前狀態。
+- [在庫查詢](https://hikarinohouse.com/help/in-stock.html)：查看目前存放在日本倉庫的包裹。
+- [出庫查詢](https://hikarinohouse.com/help/shipping-status.html)：查看集運出貨後的出貨與配送狀態。
+- [日本包裹空運集運](https://hikarinohouse.com/help/air-shipping.html)：日本收貨、整理、合併與空運回台灣的流程。
+- [集運出貨](https://hikarinohouse.com/help/shipping-request.html)：申請合併、打包並空運出貨。
+- [倉庫收件地址](https://hikarinohouse.com/help/address.html)：日本倉庫收件地址的取得方式。
+- [禁運品與限制商品](https://hikarinohouse.com/help/restricted-items.html)：哪些商品不能集運或需先確認。
+- [日本商品代購](https://hikarinohouse.com/help/proxy-buying.html)：代購日本官網、店鋪、限定商品。
+- [付款／費用](https://hikarinohouse.com/help/payment-fees.html)：費用確認與付款方式。
+- [儲值金](https://hikarinohouse.com/help/stored-value.html)：預先儲值、餘額查詢與費用扣抵。
 - [EZWAY 清關確認](https://hikarinohouse.com/help/ezway.html)：進口包裹的實名認證與清關委任確認。
+- [清關問題處理](https://hikarinohouse.com/help/customs-problem.html)：包裹清關卡關、補件、補稅的處理。
 
 ## 聯絡方式
 
@@ -48,4 +56,4 @@
 
 ## 補充
 
-客服知識庫（/help/）持續建置中。第一批已上線：包裹查詢、付款／費用、日本包裹空運集運、EZWAY 清關確認。後續將陸續新增：在庫查詢、集運出貨、出庫查詢、儲值金、日本商品代購、倉庫收件地址、禁運品與限制商品、清關問題處理等。
+客服知識庫（/help/）目前共 12 個主題頁面，皆已上線：包裹查詢、在庫查詢、出庫查詢、日本包裹空運集運、集運出貨、倉庫收件地址、禁運品與限制商品、日本商品代購、付款／費用、儲值金、EZWAY 清關確認、清關問題處理。所有查詢與服務皆透過 LINE客服系統處理。
