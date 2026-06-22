@@ -40,4 +40,5 @@ Allow: /
 User-agent: Perplexity-User
 Allow: /
 
+Sitemap: https://hikarinohouse.com/sitemap_index.xml
 Sitemap: https://hikarinohouse.com/sitemap.xml
