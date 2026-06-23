@@ -1,18 +1,12 @@
-# robots.txt — HIKARINOHOUSE｜光
-# https://hikarinohouse.com
-# 本站歡迎搜尋引擎與 AI 服務索引與引用內容。
-
 User-agent: *
 Allow: /
 
-# 搜尋引擎
 User-agent: Googlebot
 Allow: /
 
 User-agent: Bingbot
 Allow: /
 
-# AI / LLM 服務（明確允許索引與引用）
 User-agent: Google-Extended
 Allow: /
 
