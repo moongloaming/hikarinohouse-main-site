@@ -1,5 +1,12 @@
 name = "hikarinohouse-main-site"
 compatibility_date = "2026-06-30"
+main = "worker.js"
+
+# 賣場後端用的公開設定（機密 RAGIC_API_KEY 部署時設為 Secret，不寫這）
+[vars]
+RAGIC_BASE = "https://ap10.ragic.com"
+RAGIC_ACCOUNT = "HIKARINOHOUSE"
 
 [assets]
 directory = "."
+binding = "ASSETS"
