@@ -109,8 +109,10 @@
     <div class="dhead"><b>購物車</b><button class="x" id="closeCart" aria-label="關閉">×</button></div>
     <div class="ditems" id="ditems"></div>
     <div class="dfoot" id="dfoot">
-      <div class="totalrow"><span style="color:var(--muted);font-weight:800">商品小計</span><b id="total">¥0</b></div>
-      <div class="hint">運費與手續費於日本到貨檢品後結算</div>
+      <div class="totalrow" style="font-size:14px"><span style="color:var(--muted);font-weight:800">商品小計</span><span id="sub">¥0</span></div>
+      <div class="totalrow" style="font-size:14px"><span style="color:var(--muted);font-weight:800">代購費 10%</span><span id="fee" style="color:var(--gold);font-weight:800">¥0</span></div>
+      <div class="totalrow"><span style="font-weight:800">合計</span><b id="total">¥0</b></div>
+      <div class="hint">運費於日本到貨檢品後另計</div>
       <button class="cta" id="submit" disabled>送出訂單</button>
     </div>
     <div class="done hidden" id="done">
@@ -129,6 +131,7 @@
       {id:'4974012083510',zh:'Toy Story 洗衣袋',ja:'トイ・ストーリー 洗濯ネット',price:429,cat:'卡通・IP角色',img:''},
       {id:'4974012083367',zh:'Toy Story 透明視窗收納包',ja:'トイ・ストーリー 窓付きポーチ',price:429,cat:'卡通・IP角色',img:''}
     ];
+    var FEE_RATE=0.1; // 代購費 10%
     var products=[],cart={},cat='全部',q='';
     var $=function(s){return document.querySelector(s)};
     var yen=function(n){return '¥'+Math.round(n).toLocaleString()};
@@ -170,6 +173,7 @@
           '<div class="pname">'+p.zh+'</div>'+
           '<div class="pja">'+(p.ja||'')+'</div>'+
           '<div class="price">'+yen(p.price)+' <small>JPY</small></div>'+
+          '<div style="font-size:11px;color:var(--gold);font-weight:800;margin-top:2px">+代購費10%</div>'+
           '<button class="addbtn">加入購物車</button>'+
           '</div>';
         d.querySelector('.addbtn').onclick=function(){cart[p.id]=(cart[p.id]||0)+1;updateCart()};
@@ -180,7 +184,10 @@
     function total(){var t=0;products.forEach(function(p){if(cart[p.id])t+=p.price*cart[p.id]});return t}
     function updateCart(){
       var n=count();var badge=$('#cartBadge');badge.textContent=n;badge.classList.toggle('hidden',n===0);
-      $('#total').textContent=yen(total());
+      var sub=total();var fee=Math.round(sub*FEE_RATE);
+      $('#sub').textContent=yen(sub);
+      $('#fee').textContent=yen(fee);
+      $('#total').textContent=yen(sub+fee);
       $('#submit').disabled=(n===0);
       var box=$('#ditems');box.innerHTML='';
       var keys=Object.keys(cart).filter(function(k){return cart[k]>0});
