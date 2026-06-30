@@ -25,8 +25,14 @@ const FIELD = {
   商品分類: "1002961",
 };
 
-// 代購訂單表（待在 Ragic 建立後填入路徑，例 forms13/NN）
-const ORDER_SHEET = "TODO_orders_sheet";
+// 代購訂單表 forms13/26（欄位 ID 自 Ragic 設計畫面實讀）
+const ORDER_SHEET = "forms13/26";
+const ORDER_FIELD = {
+  LINE_UserId: "1002963",
+  收件人: "1002964",
+  訂單明細: "1002965",
+  訂單狀態: "1002966",
+};
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -86,17 +92,15 @@ async function createOrder(env, request) {
   const items = Array.isArray(body.items) ? body.items : [];
   if (!items.length) return json({ error: "訂單沒有商品" }, 400);
 
-  // TODO：待「代購訂單」表建立後，依其欄位 ID 寫入。
-  // 目前先回成功讓前端流程通；實際寫入待 ORDER_SHEET 與欄位 ID 完成。
-  if (ORDER_SHEET.startsWith("TODO")) {
-    return json({ ok: true, pending: "order sheet 尚未建立，暫未寫入 Ragic" });
-  }
-  const orderNo = "S" + Date.now();
-  // Ragic 寫入：POST 到 ORDER_SHEET，欄位以 ID 對應（待填）
+  // 訂單明細整理成易讀文字（一行一品項）+ 原始 JSON，存進「訂單明細」欄
+  const detailText = items
+    .map((it) => `${it.zh || it.id} x${it.qty}`)
+    .join("\n");
   const form = new URLSearchParams();
-  form.set("訂單編號", orderNo);
-  form.set("LINE_UserId", body.lineUserId || "");
-  form.set("明細", JSON.stringify(items));
+  form.set(ORDER_FIELD.LINE_UserId, body.lineUserId || "");
+  form.set(ORDER_FIELD.收件人, body.recipient || "");
+  form.set(ORDER_FIELD.訂單明細, detailText + "\n---\n" + JSON.stringify(items));
+  form.set(ORDER_FIELD.訂單狀態, "已送出");
   const url = ragicUrl(env, ORDER_SHEET, "api&v=3");
   const resp = await fetch(url, {
     method: "POST",
@@ -104,7 +108,8 @@ async function createOrder(env, request) {
     body: form.toString(),
   });
   if (!resp.ok) return json({ error: "訂單寫入失敗" }, 502);
-  return json({ ok: true, orderNo });
+  const created = await resp.json().catch(() => ({}));
+  return json({ ok: true, ragic: created._ragicId || created.ragicId || null });
 }
 
 export default {
