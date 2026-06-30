@@ -42,14 +42,18 @@ function json(data, status = 200) {
 }
 
 function ragicHeaders(env) {
-  // Ragic API 以 API Key 作 Basic 認證
-  return { Authorization: "Basic " + (env.RAGIC_API_KEY || "") };
+  // Ragic API 以 API Key 作 Basic 認證;需帶 User-Agent，否則 Ragic 會回 403 Blocked
+  return {
+    Authorization: "Basic " + (env.RAGIC_API_KEY || ""),
+    "User-Agent": "Mozilla/5.0 (hikarinohouse-store)",
+  };
 }
 
 function ragicUrl(env, sheet, query) {
   const base = env.RAGIC_BASE || RAGIC_BASE_DEFAULT;
   const account = env.RAGIC_ACCOUNT || RAGIC_ACCOUNT_DEFAULT;
-  return `${base}/${account}/${sheet}?${query}`;
+  const key = encodeURIComponent(env.RAGIC_API_KEY || "");
+  return `${base}/${account}/${sheet}?${query}&APIKey=${key}`;
 }
 
 // GET /store/api/products — 回傳上架商品
@@ -63,20 +67,25 @@ async function getProducts(env) {
     `api&v=3&where=${FIELD.上架賣場},eq,Yes`
   );
   const resp = await fetch(url, { headers: ragicHeaders(env) });
-  if (!resp.ok) return json({ error: "Ragic 讀取失敗", products: [] }, 502);
+  if (!resp.ok) {
+    const t = await resp.text().catch(() => "");
+    return json({ error: "Ragic 讀取失敗", status: resp.status, detail: t.slice(0, 200), products: [] }, 502);
+  }
   const raw = await resp.json();
-  // Ragic 回傳物件：{ recordId: { fieldId: value, ... }, ... }
-  const products = Object.keys(raw).map((rid) => {
-    const r = raw[rid];
-    return {
-      id: r[FIELD.商品條碼] || rid,
-      zh: r[FIELD.中文] || "",
-      ja: r[FIELD.商品名稱] || r._name || "",
-      price: Number(String(r[FIELD.單價] || "0").replace(/[^0-9.]/g, "")) || 0,
-      cat: r[FIELD.商品分類] || "其他",
-      img: r[FIELD.上傳圖片] || "",
-    };
-  });
+  // Ragic 回傳物件：{ recordId: { 欄位名稱: value, ... }, ... }（欄位以「名稱」為 key）
+  const products = Object.keys(raw)
+    .filter((k) => raw[k] && typeof raw[k] === "object" && raw[k]._ragicId)
+    .map((rid) => {
+      const r = raw[rid];
+      return {
+        id: r["商品條碼"] || rid,
+        zh: r["中文"] || "",
+        ja: r["商品名稱"] || "",
+        price: Number(String(r["單價"] || "0").replace(/[^0-9.]/g, "")) || 0,
+        cat: r["商品分類"] || "其他",
+        img: r["上傳圖片"] || "",
+      };
+    });
   return json({ products });
 }
 
