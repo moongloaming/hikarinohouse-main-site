@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>商店｜HIKARINOHOUSE 光・日本代購賣場</title>
+  <meta name="description" content="HIKARINOHOUSE 光 日本代購賣場：精選日本商品，LINE 登入下單，日本端採購集運一站處理。">
+  <meta name="theme-color" content="#111827">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="canonical" href="https://hikarinohouse.com/store">
+  <meta name="robots" content="noindex">
+  <style>
+    :root{--ink:#111827;--deep:#111827;--muted:#566070;--gold:#b8873e;--bg:#fbf7ef;--line:rgba(17,24,39,.12);--card:#fffdf8;--max:1120px;--shadow:0 28px 80px rgba(17,24,39,.10)}
+    *{box-sizing:border-box}html{scroll-behavior:smooth}
+    body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC","Noto Sans JP",Arial,sans-serif;color:var(--ink);background:linear-gradient(180deg,#fbf7ef 0%,#fffdf8 54%,#fff 100%);line-height:1.6}
+    a{text-decoration:none;color:inherit}
+    .wrap{width:min(var(--max),calc(100% - 44px));margin:auto}
+    header{position:sticky;top:0;z-index:30;background:rgba(251,247,239,.92);backdrop-filter:blur(16px);border-bottom:1px solid var(--line)}
+    .nav{height:74px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+    .brand{display:flex;align-items:center;gap:12px}
+    .mark{width:38px;height:38px;border-radius:13px;background:var(--deep);color:#fff;display:grid;place-items:center;font-size:21px;font-weight:900}
+    .brand strong{display:block;letter-spacing:.08em;font-size:15px}.brand span{display:block;font-size:11px;color:var(--muted);font-weight:800}
+    .navbtns{display:flex;align-items:center;gap:12px}
+    .iconbtn{position:relative;border:1px solid var(--line);background:#fff;border-radius:999px;padding:9px 16px;font-weight:800;font-size:14px;cursor:pointer}
+    .badge{position:absolute;top:-6px;right:-6px;min-width:20px;height:20px;border-radius:999px;background:var(--gold);color:#fff;font-size:12px;font-weight:900;display:grid;place-items:center;padding:0 5px}
+    .me{font-size:13px;color:var(--muted);font-weight:800}
+    .tools{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:26px 0 18px}
+    .search{flex:1;min-width:200px;position:relative}
+    .search input{width:100%;height:44px;border:1px solid var(--line);border-radius:999px;padding:0 18px 0 42px;font-size:15px;background:#fff;font-family:inherit}
+    .search:before{content:"⌕";position:absolute;left:16px;top:8px;font-size:22px;color:var(--muted)}
+    .cats{display:flex;gap:8px;flex-wrap:wrap}
+    .chip{padding:9px 16px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--muted);font-weight:800;font-size:14px;cursor:pointer}
+    .chip.on{background:var(--deep);color:#fff;border-color:var(--deep)}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:18px;margin:8px 0 60px}
+    .prod{background:var(--card);border:1px solid var(--line);border-radius:24px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 16px 42px rgba(17,24,39,.05)}
+    .thumb{aspect-ratio:1/1;background:#f2ece0;display:grid;place-items:center;color:#c9bda6;font-size:46px}
+    .thumb img{width:100%;height:100%;object-fit:cover}
+    .pbody{padding:16px 16px 18px;display:flex;flex-direction:column;flex:1}
+    .pcat{font-size:11px;color:var(--gold);font-weight:900;letter-spacing:.06em}
+    .pname{font-size:15px;font-weight:800;margin:4px 0 2px;line-height:1.35}
+    .pja{font-size:12px;color:var(--muted);height:2.6em;overflow:hidden;margin-bottom:10px}
+    .price{font-size:20px;font-weight:900;margin-top:auto}
+    .price small{font-size:12px;color:var(--muted);font-weight:800}
+    .addbtn{margin-top:12px;width:100%;border:none;background:var(--deep);color:#fff;border-radius:999px;padding:11px;font-weight:900;font-size:14px;cursor:pointer;font-family:inherit}
+    .addbtn:active{transform:scale(.98)}
+    .empty{grid-column:1/-1;text-align:center;color:var(--muted);padding:50px 0}
+    .scrim{position:fixed;inset:0;background:rgba(17,24,39,.45);z-index:40;display:none}
+    .scrim.open{display:block}
+    .drawer{position:fixed;top:0;right:0;height:100%;width:min(390px,92vw);background:#fff;z-index:50;box-shadow:-20px 0 60px rgba(17,24,39,.18);transform:translateX(100%);transition:transform .22s ease;display:flex;flex-direction:column}
+    .drawer.open{transform:translateX(0)}
+    .dhead{display:flex;align-items:center;justify-content:space-between;padding:20px 22px;border-bottom:1px solid var(--line)}
+    .dhead b{font-size:18px}
+    .x{border:none;background:none;font-size:24px;cursor:pointer;color:var(--muted);line-height:1}
+    .ditems{flex:1;overflow:auto;padding:8px 22px}
+    .citem{display:flex;gap:12px;align-items:center;padding:14px 0;border-bottom:1px solid var(--line)}
+    .citem .ci-n{flex:1;min-width:0}.citem .ci-n b{font-size:14px;font-weight:800;display:block;line-height:1.3}.citem .ci-n span{font-size:13px;color:var(--muted)}
+    .qty{display:flex;align-items:center;gap:10px}
+    .qty button{width:28px;height:28px;border:1px solid var(--line);background:#fff;border-radius:8px;font-size:16px;cursor:pointer;line-height:1}
+    .dfoot{padding:18px 22px;border-top:1px solid var(--line)}
+    .totalrow{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px}
+    .totalrow b{font-size:22px}
+    .hint{font-size:12px;color:var(--muted);margin-bottom:14px}
+    .cta{width:100%;border:none;background:var(--gold);color:#fff;border-radius:999px;padding:14px;font-weight:900;font-size:15px;cursor:pointer;font-family:inherit}
+    .cta[disabled]{opacity:.5;cursor:not-allowed}
+    .gate{position:fixed;inset:0;background:linear-gradient(180deg,#fbf7ef,#fff);z-index:60;display:grid;place-items:center}
+    .gatecard{width:min(380px,90vw);text-align:center;background:var(--card);border:1px solid var(--line);border-radius:28px;padding:38px 30px;box-shadow:var(--shadow)}
+    .gatecard .mark{margin:0 auto 16px;width:54px;height:54px;border-radius:18px;font-size:30px}
+    .gatecard h1{font-size:24px;margin:0 0 6px}
+    .gatecard p{color:var(--muted);font-size:14px;margin:0 0 24px}
+    .linebtn{width:100%;border:none;background:#06c755;color:#fff;border-radius:14px;padding:14px;font-weight:900;font-size:16px;cursor:pointer;font-family:inherit}
+    .done{text-align:center;padding:50px 22px}
+    .done .ok{width:64px;height:64px;border-radius:50%;background:#eaf7ee;color:#06c755;font-size:34px;display:grid;place-items:center;margin:0 auto 16px}
+    .done b{font-size:19px;display:block;margin-bottom:8px}.done p{color:var(--muted);font-size:14px;margin:0 auto;max-width:260px}
+    .hidden{display:none!important}
+    @media(max-width:620px){.wrap{width:min(var(--max),calc(100% - 28px))}.grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}}
+  </style>
+</head>
+<body>
+
+  <div class="gate" id="gate">
+    <div class="gatecard">
+      <div class="mark">光</div>
+      <h1>HIKARINOHOUSE 商店</h1>
+      <p>日本代購賣場・請用 LINE 登入後選購</p>
+      <button class="linebtn" id="lineLogin">使用 LINE 登入</button>
+    </div>
+  </div>
+
+  <header>
+    <div class="wrap nav">
+      <a class="brand" href="/"><span class="mark">光</span><span><strong>HIKARINOHOUSE</strong><span>日本代購賣場</span></span></a>
+      <div class="navbtns">
+        <span class="me" id="me"></span>
+        <button class="iconbtn" id="openCart">購物車<span class="badge hidden" id="cartBadge">0</span></button>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div class="tools">
+      <div class="search"><input type="text" id="q" placeholder="搜尋商品名稱"></div>
+      <div class="cats" id="cats"></div>
+    </div>
+    <div class="grid" id="grid"></div>
+  </main>
+
+  <div class="scrim" id="scrim"></div>
+  <aside class="drawer" id="drawer" aria-label="購物車">
+    <div class="dhead"><b>購物車</b><button class="x" id="closeCart" aria-label="關閉">×</button></div>
+    <div class="ditems" id="ditems"></div>
+    <div class="dfoot" id="dfoot">
+      <div class="totalrow"><span style="color:var(--muted);font-weight:800">商品小計</span><b id="total">¥0</b></div>
+      <div class="hint">運費與手續費於日本到貨檢品後結算</div>
+      <button class="cta" id="submit" disabled>送出訂單</button>
+    </div>
+    <div class="done hidden" id="done">
+      <div class="ok">✓</div>
+      <b>訂單已送出</b>
+      <p>我們會在日本代購，到貨後以 LINE 通知您結單出貨。</p>
+      <button class="cta" style="background:var(--deep);margin-top:20px" id="keepShopping">繼續選購</button>
+    </div>
+  </aside>
+
+  <script>
+  (function(){
+    var SAMPLE=[
+      {id:'1900021535712',zh:'無袖背心',ja:'【25quee】プリントサテンタンク',price:5280,cat:'服飾',img:''},
+      {id:'4974012083510',zh:'Toy Story 洗衣袋',ja:'トイ・ストーリー 洗濯ネット',price:429,cat:'生活用品',img:''},
+      {id:'4974012083367',zh:'Toy Story 透明視窗收納包',ja:'トイ・ストーリー 窓付きポーチ',price:429,cat:'生活用品',img:''}
+    ];
+    var products=[],cart={},cat='全部',q='';
+    var $=function(s){return document.querySelector(s)};
+    var yen=function(n){return '¥'+Math.round(n).toLocaleString()};
+
+    function login(){
+      $('#gate').classList.add('hidden');
+      $('#me').textContent='已用 LINE 登入';
+      loadProducts();
+    }
+    $('#lineLogin').addEventListener('click',login);
+
+    function loadProducts(){
+      fetch('/store/api/products').then(function(r){if(!r.ok)throw 0;return r.json()})
+        .then(function(d){products=(d&&d.products&&d.products.length)?d.products:SAMPLE;render()})
+        .catch(function(){products=SAMPLE;render()});
+    }
+    function categories(){var s=['全部'];products.forEach(function(p){if(s.indexOf(p.cat)<0&&p.cat)s.push(p.cat)});return s}
+    function renderCats(){
+      var c=$('#cats');c.innerHTML='';
+      categories().forEach(function(name){
+        var b=document.createElement('button');b.className='chip'+(name===cat?' on':'');b.textContent=name;
+        b.onclick=function(){cat=name;render()};c.appendChild(b);
+      });
+    }
+    function visible(){return products.filter(function(p){
+      return (cat==='全部'||p.cat===cat)&&(q===''||(p.zh+(p.ja||'')).toLowerCase().indexOf(q.toLowerCase())>=0);
+    })}
+    function render(){
+      renderCats();
+      var g=$('#grid');g.innerHTML='';
+      var list=visible();
+      if(!list.length){g.innerHTML='<div class="empty">找不到符合的商品</div>';return}
+      list.forEach(function(p){
+        var d=document.createElement('div');d.className='prod';
+        var thumb=p.img?('<img src="'+p.img+'" alt="">'):'🛍️';
+        d.innerHTML='<div class="thumb">'+thumb+'</div>'+
+          '<div class="pbody">'+
+          '<div class="pcat">'+(p.cat||'')+'</div>'+
+          '<div class="pname">'+p.zh+'</div>'+
+          '<div class="pja">'+(p.ja||'')+'</div>'+
+          '<div class="price">'+yen(p.price)+' <small>JPY</small></div>'+
+          '<button class="addbtn">加入購物車</button>'+
+          '</div>';
+        d.querySelector('.addbtn').onclick=function(){cart[p.id]=(cart[p.id]||0)+1;updateCart()};
+        g.appendChild(d);
+      });
+    }
+    function count(){var n=0;for(var k in cart)n+=cart[k];return n}
+    function total(){var t=0;products.forEach(function(p){if(cart[p.id])t+=p.price*cart[p.id]});return t}
+    function updateCart(){
+      var n=count();var badge=$('#cartBadge');badge.textContent=n;badge.classList.toggle('hidden',n===0);
+      $('#total').textContent=yen(total());
+      $('#submit').disabled=(n===0);
+      var box=$('#ditems');box.innerHTML='';
+      var keys=Object.keys(cart).filter(function(k){return cart[k]>0});
+      if(!keys.length){box.innerHTML='<div class="empty">購物車是空的</div>'}
+      keys.forEach(function(k){
+        var p=products.filter(function(x){return x.id===k})[0];if(!p)return;
+        var row=document.createElement('div');row.className='citem';
+        row.innerHTML='<div class="ci-n"><b>'+p.zh+'</b><span>'+yen(p.price)+'</span></div>';
+        var qd=document.createElement('div');qd.className='qty';
+        var m=document.createElement('button');m.textContent='−';m.onclick=function(){cart[k]--;if(cart[k]<=0)delete cart[k];updateCart()};
+        var num=document.createElement('span');num.textContent=cart[k];num.style.minWidth='18px';num.style.textAlign='center';num.style.fontWeight='800';
+        var pl=document.createElement('button');pl.textContent='+';pl.onclick=function(){cart[k]++;updateCart()};
+        qd.appendChild(m);qd.appendChild(num);qd.appendChild(pl);row.appendChild(qd);box.appendChild(row);
+      });
+    }
+    function openCart(o){$('#scrim').classList.toggle('open',o);$('#drawer').classList.toggle('open',o)}
+    $('#openCart').onclick=function(){$('#done').classList.add('hidden');$('#dfoot').classList.remove('hidden');$('#ditems').classList.remove('hidden');updateCart();openCart(true)};
+    $('#closeCart').onclick=function(){openCart(false)};
+    $('#scrim').onclick=function(){openCart(false)};
+    $('#q').addEventListener('input',function(e){q=e.target.value;render()});
+    $('#submit').onclick=function(){
+      if(count()===0)return;
+      var items=Object.keys(cart).map(function(k){var p=products.filter(function(x){return x.id===k})[0];return{id:k,zh:p?p.zh:'',qty:cart[k]}});
+      fetch('/store/api/order',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items:items})})
+        .then(function(){}).catch(function(){}).finally(showDone);
+    };
+    function showDone(){cart={};updateCart();$('#ditems').classList.add('hidden');$('#dfoot').classList.add('hidden');$('#done').classList.remove('hidden')}
+    $('#keepShopping').onclick=function(){openCart(false)};
+  })();
+  </script>
+</body>
+</html>
