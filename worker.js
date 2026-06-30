@@ -14,14 +14,15 @@ const RAGIC_ACCOUNT_DEFAULT = "HIKARINOHOUSE";
 // 日本商品表 forms4/6。欄位以 Ragic 內部欄位 ID 對應。
 // 已知：上架賣場 = 1002960。其餘 ID 待有 API Key 後用 ?api 實測填入（見 README 註記）。
 const PRODUCT_SHEET = "forms4/6";
+// 日本商品欄位 ID（自 Ragic 設計畫面實讀）
 const FIELD = {
+  商品條碼: "1000272",
+  商品名稱: "1000273",
+  單價: "1000275",
+  中文: "1000452",
+  上傳圖片: "1002934",
   上架賣場: "1002960",
-  // TODO(有金鑰後實測填入正確 ID)：
-  商品條碼: "TODO",
-  中文: "TODO",
-  單價: "TODO",
-  商品分類: "TODO",
-  上傳圖片: "TODO",
+  商品分類: "1002961",
 };
 
 // 代購訂單表（待在 Ragic 建立後填入路徑，例 forms13/NN）
@@ -64,7 +65,7 @@ async function getProducts(env) {
     return {
       id: r[FIELD.商品條碼] || rid,
       zh: r[FIELD.中文] || "",
-      ja: r["商品名稱"] || r._name || "",
+      ja: r[FIELD.商品名稱] || r._name || "",
       price: Number(String(r[FIELD.單價] || "0").replace(/[^0-9.]/g, "")) || 0,
       cat: r[FIELD.商品分類] || "其他",
       img: r[FIELD.上傳圖片] || "",
