@@ -123,10 +123,11 @@
 
   <script>
   (function(){
+    var CATS=['伴手禮・零食甜點','咖啡・茶・超商速食','卡通・IP角色','玩具・模型・一番賞','美妝・藥妝','服飾・潮牌','生活雜貨・百元店','家電・3C','神社・御守','景點・限定・美術館','其他'];
     var SAMPLE=[
-      {id:'1900021535712',zh:'無袖背心',ja:'【25quee】プリントサテンタンク',price:5280,cat:'服飾',img:''},
-      {id:'4974012083510',zh:'Toy Story 洗衣袋',ja:'トイ・ストーリー 洗濯ネット',price:429,cat:'生活用品',img:''},
-      {id:'4974012083367',zh:'Toy Story 透明視窗收納包',ja:'トイ・ストーリー 窓付きポーチ',price:429,cat:'生活用品',img:''}
+      {id:'1900021535712',zh:'無袖背心',ja:'【25quee】プリントサテンタンク',price:5280,cat:'服飾・潮牌',img:''},
+      {id:'4974012083510',zh:'Toy Story 洗衣袋',ja:'トイ・ストーリー 洗濯ネット',price:429,cat:'卡通・IP角色',img:''},
+      {id:'4974012083367',zh:'Toy Story 透明視窗收納包',ja:'トイ・ストーリー 窓付きポーチ',price:429,cat:'卡通・IP角色',img:''}
     ];
     var products=[],cart={},cat='全部',q='';
     var $=function(s){return document.querySelector(s)};
@@ -144,7 +145,7 @@
         .then(function(d){products=(d&&d.products&&d.products.length)?d.products:SAMPLE;render()})
         .catch(function(){products=SAMPLE;render()});
     }
-    function categories(){var s=['全部'];products.forEach(function(p){if(s.indexOf(p.cat)<0&&p.cat)s.push(p.cat)});return s}
+    function categories(){return ['全部'].concat(CATS)}
     function renderCats(){
       var c=$('#cats');c.innerHTML='';
       categories().forEach(function(name){
