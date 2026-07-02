@@ -41,6 +41,12 @@
     .pja{font-size:12px;color:var(--muted);height:2.6em;overflow:hidden;margin-bottom:10px}
     .price{font-size:20px;font-weight:900;margin-top:auto}
     .price small{font-size:12px;color:var(--muted);font-weight:800}
+    .pbreak{font-size:11px;color:var(--muted);font-weight:700;margin-top:3px}
+    .prod .thumb{position:relative}
+    .ptag{position:absolute;top:8px;left:8px;font-size:11px;font-weight:800;padding:3px 9px;border-radius:999px;color:#fff}
+    .ptag.out{background:#9ca3af}
+    .ptag.pre{background:var(--gold)}
+    .addbtn[disabled]{background:#d1d5db;cursor:not-allowed}
     .addbtn{margin-top:12px;width:100%;border:none;background:var(--deep);color:#fff;border-radius:999px;padding:11px;font-weight:900;font-size:14px;cursor:pointer;font-family:inherit}
     .addbtn:active{transform:scale(.98)}
     .empty{grid-column:1/-1;text-align:center;color:var(--muted);padding:50px 0}
@@ -72,7 +78,50 @@
     .done .ok{width:64px;height:64px;border-radius:50%;background:#eaf7ee;color:#06c755;font-size:34px;display:grid;place-items:center;margin:0 auto 16px}
     .done b{font-size:19px;display:block;margin-bottom:8px}.done p{color:var(--muted);font-size:14px;margin:0 auto;max-width:260px}
     .hidden{display:none!important}
-    @media(max-width:620px){.wrap{width:min(var(--max),calc(100% - 28px))}.grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}}
+    .prod .thumb,.prod .pname{cursor:pointer}
+    /* 商品詳情彈窗 */
+    .modal{position:fixed;inset:0;z-index:70;display:none;align-items:center;justify-content:center;padding:18px}
+    .modal.open{display:flex}
+    #modal{z-index:80} /* 商品詳情疊在「我的訂單」之上 */
+    .lnk{cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+    .orditems .lnk{color:var(--gold)}
+    .modal .mbg{position:absolute;inset:0;background:rgba(17,24,39,.5)}
+    .mcard{position:relative;background:#fff;border-radius:24px;width:min(460px,94vw);max-height:90vh;overflow:auto;box-shadow:var(--shadow)}
+    .mcard .mimg{width:100%;aspect-ratio:1/1;background:#f4efe6;display:grid;place-items:center;overflow:hidden}
+    .mcard .mimg img{width:100%;height:100%;object-fit:cover}
+    .mcard .mx{position:absolute;top:12px;right:12px;width:36px;height:36px;border:none;border-radius:50%;background:rgba(255,255,255,.92);font-size:22px;cursor:pointer;line-height:1;box-shadow:0 4px 14px rgba(0,0,0,.15)}
+    .mbody{padding:20px 22px 24px}
+    .mbody .pcat{font-size:12px;color:var(--gold);font-weight:800}
+    .mbody h2{font-size:20px;margin:6px 0 2px;line-height:1.3}
+    .mbody .mja{font-size:13px;color:var(--muted);margin-bottom:12px}
+    .mbody .mprice{font-size:26px;font-weight:900}
+    .mbody .mprice small{font-size:12px;color:var(--muted);font-weight:800}
+    .mbody .mfee{font-size:12px;color:var(--gold);font-weight:800;margin:2px 0 14px}
+    .mbody .mdesc{font-size:14px;color:var(--ink);line-height:1.7;white-space:pre-wrap;border-top:1px solid var(--line);padding-top:14px;margin-bottom:18px}
+    .ordrow{border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:10px}
+    .ordrow .ordtop{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+    .ordrow b{font-size:15px}
+    .ordstatus{font-size:12px;font-weight:800;padding:2px 10px;border-radius:999px;background:#eef2f7;color:var(--muted)}
+    .ordstatus.ready{background:#eaf7ee;color:#06863a}
+    .orditems{margin:8px 0;border-top:1px dashed var(--line);border-bottom:1px dashed var(--line);padding:8px 0}
+    .orditems>div{display:flex;justify-content:space-between;font-size:13px;padding:2px 0}
+    .orditems>div span:first-child{color:var(--ink)}.orditems>div span:last-child{color:var(--muted);font-weight:800}
+    .ordsum{font-size:13px;color:var(--muted);font-weight:800;margin-top:4px;cursor:pointer;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .ordexp{color:var(--gold);font-weight:800}
+    .morebtn{width:100%;border:1px dashed var(--line);background:#fff;border-radius:12px;padding:10px;font-weight:800;font-size:13px;color:var(--muted);cursor:pointer;font-family:inherit}
+    .ordrow .chkbtn{margin-top:10px;width:100%;border:none;background:var(--gold);color:#fff;border-radius:999px;padding:10px;font-weight:900;font-size:14px;cursor:pointer;font-family:inherit}
+    .ordrow .chkbtn[disabled]{opacity:.6;cursor:not-allowed}
+    @media(max-width:620px){
+      .wrap{width:min(var(--max),calc(100% - 28px))}
+      .grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+      .nav{height:58px;gap:8px}
+      .brand .mark{width:32px;height:32px;font-size:18px;border-radius:10px}
+      .brand strong{font-size:13px;letter-spacing:.04em}
+      .brand>span>span{display:none}
+      .me{display:none}
+      .navbtns{gap:8px}
+      .iconbtn{padding:7px 12px;font-size:12px}
+    }
   </style>
 </head>
 <body>
@@ -88,9 +137,10 @@
 
   <header>
     <div class="wrap nav">
-      <a class="brand" href="/"><span class="mark">光</span><span><strong>HIKARINOHOUSE</strong><span>日本代購賣場</span></span></a>
+      <a class="brand" href="/"><div class="mark">光</div><span><strong>HIKARINOHOUSE</strong><span>日本代購賣場</span></span></a>
       <div class="navbtns">
         <span class="me" id="me"></span>
+        <button class="iconbtn" id="openOrders">我的訂單</button>
         <button class="iconbtn" id="openCart">購物車<span class="badge hidden" id="cartBadge">0</span></button>
       </div>
     </div>
@@ -123,29 +173,90 @@
     </div>
   </aside>
 
+  <!-- 商品詳情 -->
+  <div class="modal" id="modal">
+    <div class="mbg" id="mbg"></div>
+    <div class="mcard">
+      <button class="mx" id="mx">×</button>
+      <div class="mimg" id="mimg"></div>
+      <div class="mbody">
+        <div class="pcat" id="mcat"></div>
+        <h2 id="mname"></h2>
+        <div class="mja" id="mja"></div>
+        <div class="mprice" id="mprice"></div>
+        <div class="mfee" id="mfee"></div>
+        <div class="mdesc" id="mdesc"></div>
+        <button class="cta" id="maddbtn" style="background:var(--deep)">加入購物車</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 我的訂單 -->
+  <div class="modal" id="ordModal">
+    <div class="mbg" id="ordBg"></div>
+    <div class="mcard">
+      <button class="mx" id="ordX">×</button>
+      <div class="mbody">
+        <h2 style="margin:0 0 4px">我的訂單</h2>
+        <div class="mja" style="margin-bottom:14px">配單完成後可按「結單」，我們才會安排檢品出貨</div>
+        <div id="ordList"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <script>
   (function(){
+    var LIFF_ID='2010571814-0TlMduee';
+    var lineUserId='', memberRate=null;
     var CATS=['伴手禮・零食甜點','咖啡・茶・超商速食','卡通・IP角色','玩具・模型・一番賞','美妝・藥妝','服飾・潮牌','生活雜貨・百元店','家電・3C','神社・御守','景點・限定・美術館','其他'];
     var SAMPLE=[
       {id:'1900021535712',zh:'無袖背心',ja:'【25quee】プリントサテンタンク',price:5280,cat:'服飾・潮牌',img:''},
       {id:'4974012083510',zh:'Toy Story 洗衣袋',ja:'トイ・ストーリー 洗濯ネット',price:429,cat:'卡通・IP角色',img:''},
       {id:'4974012083367',zh:'Toy Story 透明視窗收納包',ja:'トイ・ストーリー 窓付きポーチ',price:429,cat:'卡通・IP角色',img:''}
     ];
-    var FEE_RATE=0.1; // 代購費 10%
+    var FEE_RATE=0.1; // 代購費率；後端「系統設定」有值時會覆蓋（loadProducts 取得）
     var products=[],cart={},cat='全部',q='';
     var $=function(s){return document.querySelector(s)};
     var yen=function(n){return '¥'+Math.round(n).toLocaleString()};
+    var jpyRate=0; // JPY→TWD（loadProducts 取得；0=暫無匯率,不顯示台幣參考價）
+    var nt=function(n){return 'NT$'+Math.round(n).toLocaleString()};
+    var ntApprox=function(y){return jpyRate>0?('（約 '+nt(y*jpyRate)+'）'):''}; // 台幣參考價,實際依下單匯率快照
+    // 商品有指定代購費率(含0)就用它,否則用全站/會員費率
+    var rateOf=function(p){return (p&&p.feeRate!=null&&p.feeRate!=='')?Number(p.feeRate):FEE_RATE;};
+    var toHand=function(p){return Math.round(p.price*(1+rateOf(p)));}; // 到手單價
+    var pct=function(r){return Math.round(r*1000)/10;}; // 0.1 → 10（保留一位小數）
 
-    function login(){
-      $('#gate').classList.add('hidden');
-      $('#me').textContent='已用 LINE 登入';
-      loadProducts();
+    function afterLogin(){ $('#gate').classList.add('hidden'); loadProducts(); }
+    // 登入後查會員身分 + 費率（未綁定則引導回 bot 綁定）
+    function fetchMe(){
+      if(!lineUserId) return Promise.resolve();
+      return fetch('/store/api/me?uid='+encodeURIComponent(lineUserId)).then(function(r){return r.json()}).then(function(m){
+        if(m&&m.found){ if(typeof m.feeRate==='number'){memberRate=m.feeRate;FEE_RATE=m.feeRate;} $('#me').textContent=(m.name||'會員')+'・'+(m.tier||''); }
+        else { $('#me').textContent='尚未綁定（請回 LINE 客服輸入「綁定」）'; }
+      }).catch(function(){});
     }
-    $('#lineLogin').addEventListener('click',login);
+    // LIFF 登入：在 LINE 內自動帶身分；一般瀏覽器會導向 LINE 登入；非 LINE 環境用預覽 fallback
+    function startLiff(){
+      if(!window.liff){ manualFallback(); return; }
+      liff.init({liffId:LIFF_ID}).then(function(){
+        if(liff.isLoggedIn()){
+          liff.getProfile().then(function(p){ lineUserId=p.userId; $('#me').textContent=p.displayName||'已登入'; fetchMe().then(afterLogin); })
+            .catch(function(){ afterLogin(); });
+        } else {
+          $('#lineLogin').textContent='使用 LINE 登入';
+          $('#lineLogin').onclick=function(){ liff.login(); };
+        }
+      }).catch(function(){ manualFallback(); });
+    }
+    function manualFallback(){
+      $('#lineLogin').onclick=function(){ $('#me').textContent='（預覽模式）'; afterLogin(); };
+    }
+    startLiff();
 
     function loadProducts(){
       fetch('/store/api/products').then(function(r){if(!r.ok)throw 0;return r.json()})
-        .then(function(d){products=(d&&d.products&&d.products.length)?d.products:SAMPLE;render()})
+        .then(function(d){ if(memberRate!=null)FEE_RATE=memberRate; else if(d&&typeof d.feeRate==='number'&&d.feeRate>0)FEE_RATE=d.feeRate; if(d&&typeof d.jpyRate==='number'&&d.jpyRate>0)jpyRate=d.jpyRate; if(d&&d.categories&&d.categories.length)CATS=d.categories; products=(d&&d.products&&d.products.length)?d.products:SAMPLE; render(); })
         .catch(function(){products=SAMPLE;render()});
     }
     function categories(){return ['全部'].concat(CATS)}
@@ -167,27 +278,52 @@
       list.forEach(function(p){
         var d=document.createElement('div');d.className='prod';
         var thumb=p.img?('<img src="'+p.img+'" alt="">'):'🛍️';
-        d.innerHTML='<div class="thumb">'+thumb+'</div>'+
+        var soldout=(p.status==='缺貨');
+        var preorder=(p.status==='預購');
+        var tag=soldout?'<div class="ptag out">缺貨</div>':(preorder?'<div class="ptag pre">預購</div>':'');
+        var btn=soldout?'<button class="addbtn" disabled>暫時缺貨</button>'
+                       :'<button class="addbtn">'+(preorder?'預購下單':'加入購物車')+'</button>';
+        d.innerHTML='<div class="thumb">'+thumb+tag+'</div>'+
           '<div class="pbody">'+
           '<div class="pcat">'+(p.cat||'')+'</div>'+
           '<div class="pname">'+p.zh+'</div>'+
           '<div class="pja">'+(p.ja||'')+'</div>'+
-          '<div class="price">'+yen(p.price)+' <small>JPY</small></div>'+
-          '<div style="font-size:11px;color:var(--gold);font-weight:800;margin-top:2px">+代購費10%</div>'+
-          '<button class="addbtn">加入購物車</button>'+
+          '<div class="price">'+yen(toHand(p))+' <small>到手價'+ntApprox(toHand(p))+'</small></div>'+
+          '<div class="pbreak">日本原價 '+yen(p.price)+'　＋代購費'+pct(rateOf(p))+'%</div>'+
+          btn+
           '</div>';
-        d.querySelector('.addbtn').onclick=function(){cart[p.id]=(cart[p.id]||0)+1;updateCart()};
+        if(!soldout)d.querySelector('.addbtn').onclick=function(){cart[p.id]=(cart[p.id]||0)+1;updateCart()};
+        d.querySelector('.thumb').onclick=function(){openDetail(p)};
+        d.querySelector('.pname').onclick=function(){openDetail(p)};
         g.appendChild(d);
       });
     }
+    var curDetail=null;
+    function openDetail(p){
+      curDetail=p;
+      $('#mimg').innerHTML=p.img?('<img src="'+p.img+'" alt="">'):'<span style="font-size:48px">🛍️</span>';
+      $('#mcat').textContent=p.cat||'';
+      $('#mname').textContent=p.zh||'';
+      $('#mja').textContent=p.ja||'';
+      $('#mprice').innerHTML=yen(toHand(p))+' <small>到手價'+ntApprox(toHand(p))+'</small>';
+      $('#mfee').innerHTML='日本原價 '+yen(p.price)+'　＋代購費'+pct(rateOf(p))+'%';
+      $('#mdesc').textContent=p.desc||'';
+      $('#mdesc').style.display=p.desc?'block':'none';
+      $('#modal').classList.add('open');
+    }
+    function closeDetail(){$('#modal').classList.remove('open');curDetail=null}
+    $('#mx').onclick=closeDetail;
+    $('#mbg').onclick=closeDetail;
+    $('#maddbtn').onclick=function(){if(curDetail){cart[curDetail.id]=(cart[curDetail.id]||0)+1;updateCart();closeDetail()}};
     function count(){var n=0;for(var k in cart)n+=cart[k];return n}
     function total(){var t=0;products.forEach(function(p){if(cart[p.id])t+=p.price*cart[p.id]});return t}
+    function toHandTotal(){var t=0;products.forEach(function(p){if(cart[p.id])t+=toHand(p)*cart[p.id]});return t}
     function updateCart(){
       var n=count();var badge=$('#cartBadge');badge.textContent=n;badge.classList.toggle('hidden',n===0);
-      var sub=total();var fee=Math.round(sub*FEE_RATE);
+      var sub=total();var grand=toHandTotal();var fee=grand-sub;
       $('#sub').textContent=yen(sub);
       $('#fee').textContent=yen(fee);
-      $('#total').textContent=yen(sub+fee);
+      $('#total').innerHTML=yen(grand)+(jpyRate>0?' <small style="color:var(--muted);font-weight:800">'+ntApprox(grand)+'</small>':'');
       $('#submit').disabled=(n===0);
       var box=$('#ditems');box.innerHTML='';
       var keys=Object.keys(cart).filter(function(k){return cart[k]>0});
@@ -195,7 +331,8 @@
       keys.forEach(function(k){
         var p=products.filter(function(x){return x.id===k})[0];if(!p)return;
         var row=document.createElement('div');row.className='citem';
-        row.innerHTML='<div class="ci-n"><b>'+p.zh+'</b><span>'+yen(p.price)+'</span></div>';
+        row.innerHTML='<div class="ci-n"><b class="lnk">'+p.zh+'</b><span>'+yen(toHand(p))+' <small style="color:var(--muted)">到手</small></span></div>';
+        (function(pp){ row.querySelector('.ci-n b').onclick=function(){ openDetail(pp); }; })(p);
         var qd=document.createElement('div');qd.className='qty';
         var m=document.createElement('button');m.textContent='−';m.onclick=function(){cart[k]--;if(cart[k]<=0)delete cart[k];updateCart()};
         var num=document.createElement('span');num.textContent=cart[k];num.style.minWidth='18px';num.style.textAlign='center';num.style.fontWeight='800';
@@ -211,11 +348,75 @@
     $('#submit').onclick=function(){
       if(count()===0)return;
       var items=Object.keys(cart).map(function(k){var p=products.filter(function(x){return x.id===k})[0];return{id:k,zh:p?p.zh:'',qty:cart[k]}});
-      fetch('/store/api/order',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items:items})})
+      fetch('/store/api/order',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items:items,lineUserId:lineUserId})})
         .then(function(){}).catch(function(){}).finally(showDone);
     };
     function showDone(){cart={};updateCart();$('#ditems').classList.add('hidden');$('#dfoot').classList.add('hidden');$('#done').classList.remove('hidden')}
     $('#keepShopping').onclick=function(){openCart(false)};
+
+    // ===== 我的訂單 / 結單 =====
+    var ordAll=[], ordShown=0;
+    var ACTIONABLE={'已配單':1,'待付款':1};
+    function openOrders(){
+      if(!lineUserId){ alert('請先用 LINE 登入'); return; }
+      $('#ordModal').classList.add('open');
+      $('#ordList').innerHTML='<div class="empty">載入中…</div>';
+      fetch('/store/api/orders?uid='+encodeURIComponent(lineUserId)).then(function(r){return r.json()}).then(function(d){
+        ordAll=(d&&d.orders)||[];
+        if(!ordAll.length){ $('#ordList').innerHTML='<div class="empty">還沒有訂單</div>'; return; }
+        // 待處理(已配單/待付款)排最前,其餘依新到舊
+        ordAll.sort(function(a,b){ return (ACTIONABLE[a.status]?0:1)-(ACTIONABLE[b.status]?0:1) || b.id-a.id; });
+        ordShown=0; $('#ordList').innerHTML=''; renderMoreOrders();
+      }).catch(function(){ $('#ordList').innerHTML='<div class="empty">載入失敗</div>'; });
+    }
+    function renderMoreOrders(){
+      var PAGE=20, slice=ordAll.slice(ordShown, ordShown+PAGE);
+      slice.forEach(function(o){ $('#ordList').appendChild(orderCard(o)); });
+      ordShown+=slice.length;
+      var old=$('#ordMore'); if(old)old.parentNode.removeChild(old);
+      if(ordShown<ordAll.length){
+        var m=document.createElement('button'); m.id='ordMore'; m.className='morebtn';
+        m.textContent='看更多訂單（剩 '+(ordAll.length-ordShown)+' 筆）'; m.onclick=renderMoreOrders;
+        $('#ordList').appendChild(m);
+      }
+    }
+    function orderCard(o){
+      var ready=(o.status==='已配單'), act=!!ACTIONABLE[o.status];
+      var row=document.createElement('div'); row.className='ordrow';
+      // 付款金額/運費=台幣（檢品計算）；商品合計=日圓
+      var extra = o.pay?('・付款 '+nt(o.pay)) : (o.freight?('・運費 '+nt(o.freight)):'');
+      row.innerHTML='<div class="ordtop"><b>'+o.no+'</b><span class="ordstatus'+(act?' ready':'')+'">'+o.status+'</span></div>'+
+        '<div class="ordsum">商品合計 '+yen(o.total)+extra+' <span class="ordexp">看明細 ▾</span></div>'+
+        '<div class="orditems" style="display:none"></div>'+
+        (ready?'<button class="chkbtn">結單（確認出貨）</button>':'');
+      var box=row.querySelector('.orditems'), loaded=false;
+      row.querySelector('.ordsum').onclick=function(){
+        if(box.style.display==='none'){
+          box.style.display='block';
+          if(!loaded){ loaded=true; box.innerHTML='<div style="font-size:12px;color:var(--muted)">載入明細…</div>';
+            fetch('/store/api/orderitems?id='+o.id+'&uid='+encodeURIComponent(lineUserId)).then(function(r){return r.json()}).then(function(d){
+              var its=(d&&d.items)||[];
+              box.innerHTML=its.length? its.map(function(it){return '<div><span class="lnk" data-id="'+it.id+'">'+it.zh+' ×'+it.qty+'</span><span>'+yen(it.sub)+'</span></div>'}).join('') : '<div style="font-size:12px;color:var(--muted)">（無明細）</div>';
+              [].slice.call(box.querySelectorAll('.lnk')).forEach(function(el){ el.onclick=function(ev){ ev.stopPropagation(); var p=products.filter(function(x){return x.id===el.getAttribute('data-id')})[0]; if(p){openDetail(p);}else{alert('這個商品目前沒有上架,看不到詳情');} }; });
+            }).catch(function(){ box.innerHTML='<div style="font-size:12px;color:var(--muted)">明細載入失敗</div>'; });
+          }
+        } else { box.style.display='none'; }
+      };
+      if(ready){ row.querySelector('.chkbtn').onclick=function(){ doCheckout(o.id, row); }; }
+      return row;
+    }
+    function doCheckout(orderId,row){
+      var b=row.querySelector('.chkbtn'); b.disabled=true; b.textContent='處理中…';
+      fetch('/store/api/checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({orderId:orderId})})
+        .then(function(r){return r.json()}).then(function(res){
+          if(res&&res.ok){ alert('已結單！我們會檢品秤重後以 LINE 通知運費與付款'); }
+          else { alert('結單失敗，請稍後再試'); }
+          openOrders();
+        }).catch(function(){ alert('結單失敗，請稍後再試'); openOrders(); });
+    }
+    $('#openOrders').onclick=openOrders;
+    $('#ordX').onclick=function(){ $('#ordModal').classList.remove('open'); };
+    $('#ordBg').onclick=function(){ $('#ordModal').classList.remove('open'); };
   })();
   </script>
 </body>
