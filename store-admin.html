@@ -26,7 +26,9 @@
     h2 b{color:var(--gold)}
     /* 一行式清單 */
     .list{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden}
-    .rowitem{display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--line)}
+    .rowitem{display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+    .ctrl{display:flex;align-items:center;gap:6px;margin-left:auto}
+    .step{width:32px;height:38px;border:1px solid var(--line);background:#fff;border-radius:10px;font-size:17px;font-weight:900;cursor:pointer;font-family:inherit;flex:none;line-height:1}
     .rowitem:last-child{border-bottom:none}
     .thumb{width:46px;height:46px;border-radius:10px;background:#f2ece0;flex:none;overflow:hidden;display:grid;place-items:center;cursor:pointer}
     .thumb img{width:100%;height:100%;object-fit:cover}
@@ -34,7 +36,7 @@
     .info b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .info span{font-size:11px;color:var(--muted);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .needbadge{font-size:13px;font-weight:900;color:var(--gold);white-space:nowrap;flex:none}
-    .qty{width:52px;height:38px;border:1px solid var(--line);border-radius:10px;font-size:16px;font-weight:900;text-align:center;font-family:inherit;flex:none}
+    .qty{width:46px;height:38px;border:1px solid var(--line);border-radius:10px;font-size:16px;font-weight:900;text-align:center;font-family:inherit;flex:none}
     .x{border:none;background:none;color:var(--muted);font-size:17px;cursor:pointer;padding:4px;flex:none;line-height:1}
     .tag{font-size:11px;font-weight:900;padding:3px 9px;border-radius:999px;background:#eee;color:var(--muted);white-space:nowrap;flex:none}
     .tag.arrived{background:#fff3d6;color:var(--gold)}
@@ -123,12 +125,19 @@
     function rowEl(r,rightHtml,subHtml){
       var d=document.createElement('div');d.className='rowitem';
       d.innerHTML='<div class="thumb">'+(r.img?('<img src="'+r.img+'" alt="" loading="lazy">'):BAG)+'</div>'+
-        '<div class="info"><b>'+(r.name||'(未命名商品)')+'</b><span>'+(subHtml||r.barcode)+'</span></div>'+rightHtml;
+        '<div class="info"><b>'+(r.name||'(未命名商品)')+'</b><span>'+(subHtml||r.barcode)+'</span></div>'+'<div class="ctrl">'+rightHtml+'</div>';
       d.querySelector('.thumb').onclick=function(){
         if(!r.img)return;
         $('#imgviewImg').src=r.img;$('#imgview').classList.add('open');
       };
       return d;
+    }
+
+    function bindStep(d){
+      var inp=d.querySelector('.qty');
+      var st=d.querySelectorAll('.step');
+      st[0].onclick=function(){inp.value=Math.max(1,(parseInt(inp.value,10)||1)-1)};
+      st[1].onclick=function(){inp.value=(parseInt(inp.value,10)||0)+1};
     }
 
     function listBox(target,rowsArr,build,emptyText){
@@ -142,7 +151,7 @@
     function render(rows){
       var pendAll=rows.filter(function(r){return r.status==='待採購'&&r.need>0});
       var counting=pendAll.filter(function(r){return r.bought>0});
-      var todayRows=pendAll.filter(function(r){return r.plan===TODAY&&TODAY&&!(r.bought>0)});
+      var todayRows=pendAll.filter(function(r){return r.plan===TODAY&&TODAY&&r.bought<r.need});
       var pend=pendAll.filter(function(r){return !(r.plan===TODAY&&TODAY)&&!(r.bought>0)});
       var arrived=rows.filter(function(r){return r.status==='已入庫'});
       var done=rows.filter(function(r){return r.status==='入庫完成'}).slice(0,10);
@@ -152,19 +161,28 @@
       $('#pendCount').textContent=pend.length?('('+pend.length+')'):'';
 
       listBox('#todayList',todayRows,function(r){
-        var d=rowEl(r,'<span class="needbadge">缺 '+r.need+' 個</span>'+
-          '<input class="qty" type="number" min="1" value="'+r.need+'" title="買到數量">'+
-          '<button class="btn gold sm">買到</button><button class="x" title="移出">✕</button>');
+        var left=r.need-r.bought;
+        var d=rowEl(r,'<span class="needbadge">'+(r.bought>0?('還差 '+left+' 個'):('缺 '+r.need+' 個'))+'</span>'+
+          '<input class="qty" type="number" min="1" value="'+left+'" title="這次買到幾個">'+
+          '<button class="btn gold sm">買到</button>'+
+          '<button class="btn ghost sm plus1">+1</button><button class="btn ghost sm plus3">+3</button>'+
+          '<button class="btn dark sm allbuy">全買到</button>'+
+          '<button class="x" title="移出">✕</button>',
+          (r.bought>0?('已買 '+r.bought+'　'):'')+r.barcode);
+        var inp=d.querySelector('.qty');
         d.querySelector('.btn.gold').onclick=function(){
-          var q=parseInt(d.querySelector('.qty').value,10)||0;if(q<1)return alert('數量要 ≥1');
-          post('/store/api/admin/bought',{id:r.id,bought:q},this);
+          var q=parseInt(inp.value,10)||0;if(q<1)return alert('數量要 ≥1');
+          post('/store/api/admin/bought',{id:r.id,bought:r.bought+q},this);
         };
+        d.querySelector('.plus1').onclick=function(){inp.value=(parseInt(inp.value,10)||0)+1};
+        d.querySelector('.plus3').onclick=function(){inp.value=(parseInt(inp.value,10)||0)+3};
+        d.querySelector('.allbuy').onclick=function(){post('/store/api/admin/bought',{id:r.id,bought:r.need},this)};
         d.querySelector('.x').onclick=function(){post('/store/api/admin/plan',{id:r.id,plan:false},this)};
         return d;
       },'還沒排今天要買的,從下面按「排今天」');
 
       listBox('#countList',counting,function(r){
-        var d=rowEl(r,'<span class="needbadge">買到 '+r.bought+'</span>'+
+        var d=rowEl(r,'<span class="needbadge">買到 '+r.bought+' 個</span>'+
           '<input class="qty" type="number" min="1" value="'+r.bought+'" title="點收數量">'+
           '<button class="btn gold sm">入庫</button><button class="x" title="取消買到">✕</button>');
         d.querySelector('.btn.gold').onclick=function(){
