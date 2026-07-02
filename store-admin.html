@@ -154,11 +154,43 @@
       var n=prompt('你的名字?(採購認領用,同事之間不要重複)',ME||'');
       if(n===null)return;
       ME=String(n).trim().slice(0,20);
-      if(ME)localStorage.setItem('storeAdminUser',ME);else localStorage.removeItem('storeAdminUser');
+      if(ME){localStorage.setItem('storeAdminUser',ME);rememberName(ME);}else localStorage.removeItem('storeAdminUser');
       updateUserBtn();render(LAST_ROWS);
     }
     $('#userBtn').onclick=setMe;
     updateUserBtn();
+
+    // 指派:名字池=自己+清單上出現過的認領人+這支手機指派過的人(存 localStorage)
+    function rememberName(n){
+      var arr=[];try{arr=JSON.parse(localStorage.getItem('storeAdminNames')||'[]')}catch(e){}
+      if(n&&arr.indexOf(n)<0){arr.push(n);localStorage.setItem('storeAdminNames',JSON.stringify(arr.slice(-12)))}
+    }
+    function knownNames(){
+      var set={};
+      try{JSON.parse(localStorage.getItem('storeAdminNames')||'[]').forEach(function(n){set[n]=1})}catch(e){}
+      if(ME)set[ME]=1;
+      LAST_ROWS.forEach(function(r){if(r.owner)set[r.owner]=1});
+      return Object.keys(set);
+    }
+    function assignPicker(r,qty){
+      var card=$('#dcard');
+      card.innerHTML='<h3>「'+(r.name||r.barcode)+'」今天買 '+qty+' 個,指派給誰?</h3><p class="sub">點名字就排進他的今日買貨</p>';
+      var box=document.createElement('div');box.style.cssText='display:flex;flex-wrap:wrap;gap:8px;padding:6px 0 4px';
+      knownNames().forEach(function(n){
+        var b=document.createElement('button');b.className='btn dark sm';b.textContent='👤'+n;
+        b.onclick=function(){rememberName(n);$('#dmodal').classList.remove('open');post('/store/api/admin/plan',{id:r.id,plan:true,owner:n,qty:qty},b)};
+        box.appendChild(b);
+      });
+      var other=document.createElement('button');other.className='btn ghost sm';other.textContent='＋其他名字';
+      other.onclick=function(){
+        var n=prompt('指派給誰?(輸入名字)');if(n===null)return;
+        n=String(n).trim().slice(0,20);if(!n)return;
+        rememberName(n);$('#dmodal').classList.remove('open');post('/store/api/admin/plan',{id:r.id,plan:true,owner:n,qty:qty},other);
+      };
+      box.appendChild(other);
+      card.appendChild(box);
+      $('#dmodal').classList.add('open');
+    }
     $('#imgview').onclick=function(){this.classList.remove('open')};
     $('#dmodal').onclick=function(e){if(e.target===this)this.classList.remove('open')};
 
@@ -322,12 +354,17 @@
       listBox('#pendList',pend,function(r){
         var d=rowEl(r,'<span class="needbadge">缺 '+r.need+' 個</span>'+
           '<input class="qty" type="number" min="1" value="'+r.need+'" title="今天要買幾個">'+
-          '<button class="btn dark sm">排今天</button>');
+          '<button class="btn dark sm">排今天</button>'+
+          '<button class="btn ghost sm assignbtn">指派</button>');
+        var qtyOf=function(){var q=parseInt(d.querySelector('.qty').value,10)||0;return q<1?(alert('數量要 ≥1'),0):q};
         d.querySelector('.btn.dark').onclick=function(){
           if(!ME){setMe();if(!ME)return} // 先報名字才能認領
-          var q=parseInt(d.querySelector('.qty').value,10)||0;
-          if(q<1)return alert('數量要 ≥1');
+          var q=qtyOf();if(!q)return;
           post('/store/api/admin/plan',{id:r.id,plan:true,owner:ME,qty:q},this);
+        };
+        d.querySelector('.assignbtn').onclick=function(){
+          var q=qtyOf();if(!q)return;
+          assignPicker(r,q);
         };
         return d;
       },'目前沒有要買的東西');
