@@ -641,7 +641,7 @@ async function getMe(env, url) {
 
 // ===== 賣場後台（採購用；通行碼=Cloudflare Secret STORE_ADMIN_TOKEN）=====
 const PURCHASE_SHEET = "store/7";
-const PURCHASE_FIELD = { 已購數量: "1003020", 狀態: "1003021" };
+const PURCHASE_FIELD = { 已購數量: "1003020", 狀態: "1003021", 預計採購日: "1003023" };
 
 function adminAuthorized(env, request, url) {
   const t = request.headers.get("x-admin-token") || url.searchParams.get("token") || "";
@@ -665,9 +665,31 @@ async function adminGetPurchases(env, request, url) {
       need: num(r["需求數量"]),
       bought: num(r["已購數量"]),
       status: r["狀態"] || "",
+      plan: r["預計採購日"] || "", // 空=未排;yyyy/MM/dd=已排
     }))
     .sort((a, b) => b.id - a.id);
-  return json({ rows });
+  return json({ rows, today: jstToday() });
+}
+
+function jstToday() {
+  return new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10).replace(/-/g, "/");
+}
+
+// POST /store/api/admin/plan {id, plan:true|false} — 排進/移出「今日採購清單」
+async function adminPurchasePlan(env, request, url) {
+  if (!adminAuthorized(env, request, url)) return json({ error: "unauthorized" }, 401);
+  let body;
+  try { body = await request.json(); } catch { return json({ error: "invalid body" }, 400); }
+  if (body.id == null) return json({ error: "缺 id" }, 400);
+  const f = new URLSearchParams();
+  f.set(PURCHASE_FIELD.預計採購日, body.plan ? jstToday() : "");
+  const resp = await fetch(ragicUrl(env, `${PURCHASE_SHEET}/${encodeURIComponent(body.id)}`, "api&v=3"), {
+    method: "POST",
+    headers: { ...ragicHeaders(env), "content-type": "application/x-www-form-urlencoded" },
+    body: f.toString(),
+  });
+  if (!resp.ok) return json({ error: "寫入失敗" }, 502);
+  return json({ ok: true });
 }
 
 // POST /store/api/admin/arrive {id, bought} — 買到入庫（掃描器 10 分鐘內自動加庫存+配單）
@@ -703,6 +725,9 @@ export default {
     }
     if (p === "/store/api/admin/arrive" && request.method === "POST") {
       return adminPurchaseArrive(env, request, url);
+    }
+    if (p === "/store/api/admin/plan" && request.method === "POST") {
+      return adminPurchasePlan(env, request, url);
     }
     if (p === "/store/api/products" && request.method === "GET") {
       return getProducts(env);

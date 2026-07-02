@@ -63,7 +63,9 @@
   </div></header>
 
   <div class="wrap">
-    <h2><svg viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8h12l-1 12H7L6 8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg> 待採購 <b id="pendCount"></b></h2>
+    <h2><svg viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="16" rx="3"/><path d="M8 3v4M16 3v4M4 10h16"/><path d="M9 15l2 2 4-4"/></svg> 今日採購清單 <b id="todayCount"></b></h2>
+    <div id="todayList"></div>
+    <h2><svg viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8h12l-1 12H7L6 8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg> 待採購（未排） <b id="pendCount"></b></h2>
     <div id="pendList"></div>
     <h2><svg viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8l9-4 9 4-9 4-9-4z"/><path d="M3 8v8l9 4 9-4V8"/><path d="M12 12v8"/></svg> 已入庫(等系統入帳)</h2>
     <div id="arrivedList"></div>
@@ -74,7 +76,7 @@
 
   <script>
     var $=function(s){return document.querySelector(s)};
-    var TOKEN=localStorage.getItem('storeAdminToken')||'';
+    var TOKEN=localStorage.getItem('storeAdminToken')||'';var TODAY='';
     function headers(){return {'x-admin-token':TOKEN,'content-type':'application/json'}}
 
     function gate(show,msg){$('#gate').classList.toggle('hidden',!show);$('#gateErr').textContent=msg||''}
@@ -88,7 +90,7 @@
       fetch('/store/api/admin/purchases',{headers:headers()}).then(function(r){
         if(r.status===401){gate(true,'通行碼不對,再試一次');localStorage.removeItem('storeAdminToken');TOKEN='';throw 0}
         return r.json();
-      }).then(function(d){gate(false);render((d&&d.rows)||[])}).catch(function(e){if(e!==0)alert('載入失敗,請重試')});
+      }).then(function(d){gate(false);TODAY=(d&&d.today)||'';render((d&&d.rows)||[])}).catch(function(e){if(e!==0)alert('載入失敗,請重試')});
     }
 
     function card(r,inner){
@@ -98,18 +100,28 @@
       return d;
     }
 
+    function setPlan(r,plan,btn){
+      btn.disabled=true;
+      fetch('/store/api/admin/plan',{method:'POST',headers:headers(),body:JSON.stringify({id:r.id,plan:plan})})
+        .then(function(x){return x.json()}).then(function(d){if(!(d&&d.ok))alert('失敗:'+((d&&d.error)||'?'));load()})
+        .catch(function(){alert('連線失敗');load()});
+    }
+
     function render(rows){
-      var pend=rows.filter(function(r){return r.status==='待採購'&&r.need>0});
+      var pendAll=rows.filter(function(r){return r.status==='待採購'&&r.need>0});
+      var todayRows=pendAll.filter(function(r){return r.plan===TODAY&&TODAY});
+      var pend=pendAll.filter(function(r){return !(r.plan===TODAY&&TODAY)});
       var arrived=rows.filter(function(r){return r.status==='已入庫'});
       var done=rows.filter(function(r){return r.status==='入庫完成'}).slice(0,10);
 
-      $('#pendCount').textContent=pend.length?('('+pend.length+' 項)'):'';
-      var pl=$('#pendList');pl.innerHTML='';
-      if(!pend.length){pl.innerHTML='<div class="empty">目前沒有要買的東西</div>'}
-      pend.forEach(function(r){
+      $('#todayCount').textContent=todayRows.length?('('+todayRows.length+' 項)'):'';
+      var tl=$('#todayList');tl.innerHTML='';
+      if(!todayRows.length){tl.innerHTML='<div class="empty">還沒排今天要買的,從下面「待採購」按「排今天」</div>'}
+      todayRows.forEach(function(r){
         var c=card(r,'<div class="need">要買 <b>'+r.need+'</b> 個</div>'+
           '<div class="row"><input type="number" min="1" value="'+r.need+'" id="q'+r.id+'">'+
-          '<button class="btn gold" style="flex:1">已買到,入庫</button></div>');
+          '<button class="btn gold" style="flex:1">已買到,入庫</button>'+
+          '<button class="btn ghost">移出</button></div>');
         c.querySelector('.btn.gold').onclick=function(){
           var q=parseInt($('#q'+r.id).value,10)||0;if(q<1)return alert('數量要 ≥1');
           if(!confirm('「'+r.name+'」入庫 '+q+' 個?'))return;
@@ -118,6 +130,17 @@
             .then(function(x){return x.json()}).then(function(d){if(d&&d.ok){load()}else{alert('失敗:'+((d&&d.error)||'?'));load()}})
             .catch(function(){alert('連線失敗');load()});
         };
+        c.querySelector('.btn.ghost').onclick=function(){setPlan(r,false,this)};
+        tl.appendChild(c);
+      });
+
+      $('#pendCount').textContent=pend.length?('('+pend.length+' 項)'):'';
+      var pl=$('#pendList');pl.innerHTML='';
+      if(!pend.length){pl.innerHTML='<div class="empty">目前沒有要買的東西</div>'}
+      pend.forEach(function(r){
+        var c=card(r,'<div class="need">要買 <b>'+r.need+'</b> 個</div>'+
+          '<div class="row"><button class="btn dark" style="flex:1">排今天</button></div>');
+        c.querySelector('.btn.dark').onclick=function(){setPlan(r,true,this)};
         pl.appendChild(c);
       });
 
