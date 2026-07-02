@@ -16,6 +16,7 @@ const RAGIC_ACCOUNT_DEFAULT = "HIKARINOHOUSE";
 const PRODUCT_SHEET = "store/3";
 // 賣場商品欄位 ID（自 Ragic 設計畫面實讀；篩選/寫入用得到）
 const FIELD = {
+  商品條碼: "1002980", // 單品即時查詢用(where=)
   商品狀態: "1002993", // 從選單選擇：草稿/上架/缺貨/預購/下架
   代購費率: "1002991", // 數值，選填；有填即為此商品指定費率（覆蓋會員/全站）
   庫存: "1002992",     // 數值
@@ -128,47 +129,27 @@ function ragicUrl(env, sheet, query) {
   return `${base}/${account}/${sheet}?${query}&APIKey=${key}`;
 }
 
-// GET /store/api/products — 回傳前台可見商品（商品狀態 ∈ 上架/缺貨/預購）
-async function getProducts(env) {
+// GET /store/api/products?cat=&q=&page=&ps= — 前台商品（商品狀態 ∈ 上架/缺貨/預購）
+// 規模化(~5000 SKU):伺服器端分頁——全量目錄走快取(getCatalog),過濾/切頁後只回一頁
+async function getProducts(env, url) {
   if (!env.RAGIC_API_KEY) {
     return json({ error: "RAGIC_API_KEY 未設定", products: [] }, 200);
   }
-  // 目前商品數少，先全撈再於 JS 過濾狀態（Ragic where 不易做「多值 OR」）；
-  // 規模化後改為伺服器端分頁 + 狀態索引。
-  const url = ragicUrl(env, PRODUCT_SHEET, "api&v=3");
-  const resp = await fetch(url, { headers: ragicHeaders(env) });
-  if (!resp.ok) {
-    const t = await resp.text().catch(() => "");
-    return json({ error: "Ragic 讀取失敗", status: resp.status, detail: t.slice(0, 200), products: [] }, 502);
-  }
-  const raw = await resp.json();
-  // Ragic 回傳物件：{ recordId: { 欄位名稱: value, ... }, ... }（欄位以「名稱」為 key）
-  const num = (v) => {
-    const s = String(v == null ? "" : v).replace(/[^0-9.]/g, "");
-    return s === "" ? null : Number(s);
-  };
-  const products = Object.keys(raw)
-    .filter((k) => raw[k] && typeof raw[k] === "object" && raw[k]._ragicId !== undefined)
-    .map((rid) => {
-      const r = raw[rid];
-      const fileVal = r["圖片"] || "";
-      return {
-        id: r["商品條碼"] || rid,
-        zh: r["中文名"] || "",
-        ja: r["產品名稱"] || "",
-        price: num(r["單價"]) || 0,
-        cat: r["種類"] || "其他",
-        desc: r["敘述"] || "",
-        status: r["商品狀態"] || "",
-        feeRate: num(r["代購費率"]), // 商品指定費率（含 0）；null=未指定
-        stock: num(r["庫存"]),
-        // 圖片走 worker 代理（Ragic 私有檔案需帶 API Key，不能讓瀏覽器直連）
-        img: fileVal ? `/store/api/img?f=${encodeURIComponent(fileVal)}` : "",
-      };
-    })
-    .filter((p) => VISIBLE_STATUS.includes(p.status));
+  const list = (await getCatalog(env)).filter((p) => VISIBLE_STATUS.includes(p.status));
+  const cat = (url && url.searchParams.get("cat")) || "";
+  const q = ((url && url.searchParams.get("q")) || "").trim().toLowerCase();
+  let filtered = list;
+  if (cat && cat !== "全部") filtered = filtered.filter((p) => p.cat === cat);
+  if (q) filtered = filtered.filter((p) => (p.zh + " " + (p.ja || "") + " " + p.id).toLowerCase().indexOf(q) >= 0);
+  const ps = Math.min(100, Math.max(1, parseInt((url && url.searchParams.get("ps")) || "", 10) || 50));
+  const page = Math.max(1, parseInt((url && url.searchParams.get("page")) || "", 10) || 1);
+  const total = filtered.length;
+  const products = filtered.slice((page - 1) * ps, (page - 1) * ps + ps).map((p) => {
+    const { rid, ...pub } = p; // rid 是內部 Ragic id,不用給前台
+    return pub;
+  });
   const [feeRate, categories, jpyRate] = await Promise.all([getFeeRate(env), getCategories(env), getJpyRate(env)]);
-  return json({ products, feeRate, categories, jpyRate });
+  return json({ products, total, page, ps, hasMore: page * ps < total, feeRate, categories, jpyRate });
 }
 
 // 讀 JPY→TWD 匯率：Ragic 優先、CSV 備援；取日期最新的 JPY 列。
@@ -316,38 +297,94 @@ async function getOrigin(env, barcode) {
   }
 }
 
-// 讀賣場商品，回傳以商品條碼為 key 的對照表（下單時用伺服器端真值做快照，不信任前端價格）
-async function getProductMap(env) {
-  const map = {};
-  try {
-    const url = ragicUrl(env, PRODUCT_SHEET, "api&v=3");
-    const resp = await fetch(url, { headers: ragicHeaders(env) });
-    if (!resp.ok) return map;
-    const raw = await resp.json();
-    const num = (v) => {
-      const s = String(v == null ? "" : v).replace(/[^0-9.]/g, "");
-      return s === "" ? null : Number(s);
-    };
-    for (const k of Object.keys(raw)) {
-      const r = raw[k];
-      if (!r || typeof r !== "object" || r._ragicId === undefined) continue;
-      const code = r["商品條碼"];
-      if (!code) continue;
-      map[code] = {
-        price: num(r["單價"]) || 0,
-        zh: r["中文名"] || "",
-        ja: r["產品名稱"] || "",
-        feeRate: num(r["代購費率"]),
-        status: r["商品狀態"] || "",
-        stock: num(r["庫存"]) || 0,
-        rid: r._ragicId,
-        img: r["圖片"] ? `/store/api/img?f=${encodeURIComponent(r["圖片"])}` : "",
-      };
-    }
-  } catch (e) {
-    /* 回傳目前 map */
+// ===== 商品讀取(規模化 ~5000 SKU) =====
+// Ragic 沒帶 limit 預設只回 1000 筆 → 全量一律 offset 翻頁;顯示用走快取、寫入路徑用單品即時查
+
+function normalizeProduct(r) {
+  const num = (v) => {
+    const s = String(v == null ? "" : v).replace(/[^0-9.]/g, "");
+    return s === "" ? null : Number(s);
+  };
+  const fileVal = r["圖片"] || "";
+  return {
+    id: String(r["商品條碼"] || "").trim(),
+    zh: r["中文名"] || "",
+    ja: r["產品名稱"] || "",
+    price: num(r["單價"]) || 0,
+    cat: r["種類"] || "其他",
+    desc: r["敘述"] || "",
+    status: r["商品狀態"] || "",
+    feeRate: num(r["代購費率"]), // 商品指定費率(含 0);null=未指定
+    stock: num(r["庫存"]) || 0,
+    rid: r._ragicId,
+    // 圖片走 worker 代理(Ragic 私有檔案需帶 API Key,不能讓瀏覽器直連)
+    img: fileVal ? `/store/api/img?f=${encodeURIComponent(fileVal)}` : "",
+  };
+}
+
+async function fetchAllProductRows(env) {
+  const rows = [];
+  for (let offset = 0; offset < 20000; offset += 1000) {
+    const resp = await fetch(ragicUrl(env, PRODUCT_SHEET, `api&v=3&limit=1000&offset=${offset}`), { headers: ragicHeaders(env) });
+    if (!resp.ok) break;
+    const raw = await resp.json().catch(() => ({}));
+    const batch = Object.values(raw).filter((r) => r && typeof r === "object" && r._ragicId !== undefined);
+    rows.push(...batch);
+    if (batch.length < 1000) break; // 最後一頁
   }
+  return rows;
+}
+
+// 全商品目錄(顯示用):Cloudflare Cache 快取 120 秒。⚠️ 庫存扣帳等寫入路徑禁用——用 getProductByBarcode 取即時值
+const CATALOG_CACHE_URL = "https://catalog.internal/store-products-v1";
+async function getCatalog(env) {
+  try {
+    const hit = await caches.default.match(CATALOG_CACHE_URL);
+    if (hit) return await hit.json();
+  } catch { /* dev 環境沒有 cache,直接撈 */ }
+  const list = (await fetchAllProductRows(env)).map(normalizeProduct).filter((p) => p.id);
+  try {
+    await caches.default.put(
+      CATALOG_CACHE_URL,
+      new Response(JSON.stringify(list), { headers: { "content-type": "application/json", "cache-control": "public, max-age=120" } })
+    );
+  } catch { /* ignore */ }
+  return list;
+}
+
+async function getCatalogMap(env) {
+  const map = {};
+  for (const p of await getCatalog(env)) map[p.id] = p;
   return map;
+}
+
+// 單品即時查詢(下單快照/入庫/配貨等寫入路徑用;不吃快取)
+async function getProductByBarcode(env, barcode) {
+  const bc = String(barcode == null ? "" : barcode).trim();
+  if (!bc) return null;
+  const resp = await fetch(
+    ragicUrl(env, PRODUCT_SHEET, `api&v=3&where=${FIELD.商品條碼},eq,${encodeURIComponent(bc)}&limit=5`),
+    { headers: ragicHeaders(env) }
+  );
+  if (!resp.ok) return null;
+  const raw = await resp.json().catch(() => ({}));
+  const r = Object.values(raw).find(
+    (x) => x && typeof x === "object" && x._ragicId !== undefined && String(x["商品條碼"] || "").trim() === bc
+  );
+  return r ? normalizeProduct(r) : null;
+}
+
+// 寫庫存的唯一出口:寫完清目錄快取,後台重整立刻看到新庫存
+async function writeProductStock(env, rid, newStock) {
+  const sf = new URLSearchParams();
+  sf.set(FIELD.庫存, String(newStock));
+  const resp = await fetch(ragicUrl(env, `${PRODUCT_SHEET}/${rid}`, "api&v=3"), {
+    method: "POST",
+    headers: { ...ragicHeaders(env), "content-type": "application/x-www-form-urlencoded" },
+    body: sf.toString(),
+  });
+  try { await caches.default.delete(CATALOG_CACHE_URL); } catch { /* ignore */ }
+  return resp;
 }
 
 // GET /store/api/img?f=<fileKey@name> — 代理 Ragic 私有圖片（帶 API Key 抓後回傳給瀏覽器）
@@ -381,13 +418,16 @@ async function createOrder(env, request) {
   const items = Array.isArray(body.items) ? body.items : [];
   if (!items.length) return json({ error: "訂單沒有商品" }, 400);
 
-  // 以伺服器端真值做快照（不信任前端價格）：查商品表 + 全站費率 + 客戶
-  const [prodMap, feeRate, customer, jpyRate] = await Promise.all([
-    getProductMap(env),
+  // 以伺服器端真值做快照（不信任前端價格）：逐條碼即時查商品(不撈全表) + 全站費率 + 客戶
+  const uniqIds = [...new Set(items.map((it) => String(it.id == null ? "" : it.id).trim()))].filter(Boolean).slice(0, 50);
+  const [prods, feeRate, customer, jpyRate] = await Promise.all([
+    Promise.all(uniqIds.map((bc) => getProductByBarcode(env, bc))),
     getFeeRate(env),
     getCustomer(env, body.lineUserId),
     getJpyRate(env),
   ]);
+  const prodMap = {};
+  prods.forEach((p) => { if (p) prodMap[p.id] = p; });
   // 會員等級費率（找得到客戶才查）；費率決定序：商品指定 > 會員等級 > 全站
   const memberRate = customer ? await getTierFeeRate(env, customer.tier) : null;
 
@@ -661,7 +701,7 @@ async function adminGetPurchases(env, request, url) {
   if (!adminAuthorized(env, request, url)) return json({ error: "unauthorized" }, 401);
   const [resp, prodMap] = await Promise.all([
     fetch(ragicUrl(env, PURCHASE_SHEET, "api&v=3&limit=500"), { headers: ragicHeaders(env) }),
-    getProductMap(env),
+    getCatalogMap(env), // 顯示用(縮圖),走快取
   ]);
   if (!resp.ok) return json({ error: "Ragic 讀取失敗" }, 502);
   const raw = await resp.json();
@@ -764,17 +804,10 @@ async function adminPurchaseArrive(env, request, url) {
   if (!rec) return json({ error: "找不到採購列" }, 404);
   if ((rec["狀態"] || "") === "入庫完成") return json({ error: "已入帳過,不能重複入庫" }, 409);
   const barcode = String(rec["商品條碼"] || "").trim();
-  const prodMap = await getProductMap(env);
-  const prod = prodMap[barcode];
+  const prod = await getProductByBarcode(env, barcode); // 即時值,不吃快取
   if (!prod) return json({ error: "賣場商品找不到條碼 " + barcode }, 404);
   const newStock = (prod.stock || 0) + bought;
-  const sf = new URLSearchParams();
-  sf.set(FIELD.庫存, String(newStock));
-  const sResp = await fetch(ragicUrl(env, `${PRODUCT_SHEET}/${prod.rid}`, "api&v=3"), {
-    method: "POST",
-    headers: { ...ragicHeaders(env), "content-type": "application/x-www-form-urlencoded" },
-    body: sf.toString(),
-  });
+  const sResp = await writeProductStock(env, prod.rid, newStock);
   if (!sResp.ok) return json({ error: "庫存寫入失敗" }, 502);
   const f = new URLSearchParams();
   f.set(PURCHASE_FIELD.已購數量, String(bought));
@@ -792,7 +825,7 @@ async function adminGetWaiting(env, request, url) {
   if (!adminAuthorized(env, request, url)) return json({ error: "unauthorized" }, 401);
   // info=true:清單才會回 _create_date(下單日,給 FIFO 顯示)
   const listUrl = ragicUrl(env, ORDER_SHEET, `api&v=3&info=true&where=${ORDER_FIELD.訂單狀態},eq,${encodeURIComponent("已送出")}&limit=200`);
-  const [resp, prodMap] = await Promise.all([fetch(listUrl, { headers: ragicHeaders(env) }), getProductMap(env)]);
+  const [resp, prodMap] = await Promise.all([fetch(listUrl, { headers: ragicHeaders(env) }), getCatalogMap(env)]);
   if (!resp.ok) return json({ error: "Ragic 讀取失敗" }, 502);
   const raw = await resp.json();
   const heads = Object.values(raw)
@@ -872,16 +905,13 @@ async function adminAllocate(env, request, url) {
   const [rowKey, line] = hit;
   const remaining = numify(line["數量"]) - numify(line["已配數量"]);
   if (remaining <= 0) return json({ error: "此品項已配滿" }, 409);
-  const prodMap = await getProductMap(env);
-  const prod = prodMap[barcode];
+  const prod = await getProductByBarcode(env, barcode); // 即時值,不吃快取
   if (!prod) return json({ error: "找不到商品 " + barcode }, 404);
   const alloc = Math.min(reqQty, remaining, prod.stock || 0);
   if (alloc <= 0) return json({ error: "沒有庫存可配" }, 409);
 
   // 先扣庫存再記已配(中斷時寧可少庫存、不超賣)
-  const sf = new URLSearchParams();
-  sf.set(FIELD.庫存, String((prod.stock || 0) - alloc));
-  await ragicPost(env, `${PRODUCT_SHEET}/${prod.rid}`, sf);
+  await writeProductStock(env, prod.rid, (prod.stock || 0) - alloc);
   const r = await allocateToOrderLine(env, body.id, entries, rowKey, line, alloc);
   return json({ ok: true, no: rec["訂單編號"], allocated: alloc, lineAlloc: r.newAlloc, lineQty: numify(line["數量"]), done: r.allDone });
 }
@@ -893,8 +923,7 @@ async function adminAutoAllocate(env, request, url) {
   try { body = await request.json(); } catch { return json({ error: "invalid body" }, 400); }
   const barcode = String(body.barcode || "").trim();
   if (!barcode) return json({ error: "缺 barcode" }, 400);
-  const prodMap = await getProductMap(env);
-  const prod = prodMap[barcode];
+  const prod = await getProductByBarcode(env, barcode); // 即時值,不吃快取
   if (!prod) return json({ error: "找不到商品 " + barcode }, 404);
   let stock = prod.stock || 0;
   if (stock <= 0) return json({ error: "沒有庫存可配" }, 409);
@@ -922,9 +951,7 @@ async function adminAutoAllocate(env, request, url) {
     const alloc = Math.min(remaining, stock);
     stock -= alloc;
     // 先扣庫存再記已配(同 adminAllocate:中斷時不超賣)
-    const sf = new URLSearchParams();
-    sf.set(FIELD.庫存, String(stock));
-    await ragicPost(env, `${PRODUCT_SHEET}/${prod.rid}`, sf);
+    await writeProductStock(env, prod.rid, stock);
     const r = await allocateToOrderLine(env, h._ragicId, entries, rowKey, line, alloc);
     results.push({ no: rec["訂單編號"], allocated: alloc, lineAlloc: r.newAlloc, done: r.allDone });
   }
@@ -938,9 +965,16 @@ async function adminAssign(env, request, url) {
   try { body = await request.json(); } catch { return json({ error: "invalid body" }, 400); }
   const ids = Array.isArray(body.ids) ? body.ids : [];
   if (!ids.length) return json({ error: "沒有勾選訂單" }, 400);
-  const prodMap = await getProductMap(env);
+  // 只即時查有用到的條碼(memo),不撈全表;庫存在本次請求內遞減追蹤
+  const prodMemo = {};
   const stocks = {};
-  for (const bc in prodMap) stocks[bc] = prodMap[bc].stock || 0;
+  const prodOf = async (bc) => {
+    if (!(bc in prodMemo)) {
+      prodMemo[bc] = await getProductByBarcode(env, bc);
+      stocks[bc] = prodMemo[bc] ? prodMemo[bc].stock || 0 : -1;
+    }
+    return prodMemo[bc];
+  };
   const results = [];
   for (const id of ids.slice(0, 30)) {
     const oResp = await fetch(ragicUrl(env, `${ORDER_SHEET}/${encodeURIComponent(id)}`, "api&v=3"), { headers: ragicHeaders(env) });
@@ -956,14 +990,13 @@ async function adminAssign(env, request, url) {
         qty: numify(l["數量"]),
         need: Math.max(0, numify(l["數量"]) - numify(l["已配數量"])), // 還需數(已配過的不重扣)
       }));
+    for (const l of lines) await prodOf(l.barcode); // 先確保每個條碼都查過(填 stocks)
     const ok = lines.length && lines.every((l) => (stocks[l.barcode] ?? -1) >= l.need);
     if (!ok) { results.push({ id, no: rec["訂單編號"], result: "庫存不足,略過" }); continue; }
     for (const l of lines) {
       if (l.need <= 0) continue;
       stocks[l.barcode] -= l.need;
-      const sf = new URLSearchParams();
-      sf.set(FIELD.庫存, String(stocks[l.barcode]));
-      await ragicPost(env, `${PRODUCT_SHEET}/${prodMap[l.barcode].rid}`, sf);
+      await writeProductStock(env, prodMemo[l.barcode].rid, stocks[l.barcode]);
     }
     const uf = new URLSearchParams();
     for (const l of lines) uf.set(ORDER_SUB.已配數量 + "_" + l.rowKey, String(l.qty));
@@ -1010,7 +1043,7 @@ export default {
       return adminAutoAllocate(env, request, url);
     }
     if (p === "/store/api/products" && request.method === "GET") {
-      return getProducts(env);
+      return getProducts(env, url);
     }
     if (p === "/store/api/me" && request.method === "GET") {
       return getMe(env, url);
