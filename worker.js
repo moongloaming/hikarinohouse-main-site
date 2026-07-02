@@ -697,6 +697,24 @@ async function adminPurchasePlan(env, request, url) {
   return json({ ok: true });
 }
 
+// POST /store/api/admin/bought {id, bought} — 店裡記「買到N」（只記數量,狀態仍=待採購→畫面歸「待點收」;0=反悔）
+async function adminPurchaseBought(env, request, url) {
+  if (!adminAuthorized(env, request, url)) return json({ error: "unauthorized" }, 401);
+  let body;
+  try { body = await request.json(); } catch { return json({ error: "invalid body" }, 400); }
+  if (body.id == null) return json({ error: "缺 id" }, 400);
+  const bought = Math.max(0, parseInt(body.bought, 10) || 0);
+  const f = new URLSearchParams();
+  f.set(PURCHASE_FIELD.已購數量, String(bought));
+  const resp = await fetch(ragicUrl(env, `${PURCHASE_SHEET}/${encodeURIComponent(body.id)}`, "api&v=3"), {
+    method: "POST",
+    headers: { ...ragicHeaders(env), "content-type": "application/x-www-form-urlencoded" },
+    body: f.toString(),
+  });
+  if (!resp.ok) return json({ error: "寫入失敗" }, 502);
+  return json({ ok: true });
+}
+
 // POST /store/api/admin/unarrive {id} — 誤按入庫的退回（只允許狀態=已入庫；入庫完成=庫存已入帳,不可退）
 async function adminPurchaseUnarrive(env, request, url) {
   if (!adminAuthorized(env, request, url)) return json({ error: "unauthorized" }, 401);
@@ -763,6 +781,9 @@ export default {
     }
     if (p === "/store/api/admin/unarrive" && request.method === "POST") {
       return adminPurchaseUnarrive(env, request, url);
+    }
+    if (p === "/store/api/admin/bought" && request.method === "POST") {
+      return adminPurchaseBought(env, request, url);
     }
     if (p === "/store/api/products" && request.method === "GET") {
       return getProducts(env);
