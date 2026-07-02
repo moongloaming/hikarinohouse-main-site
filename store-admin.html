@@ -20,7 +20,7 @@
     .btn.dark{background:var(--deep);color:#fff}
     .btn.gold{background:var(--gold);color:#fff}
     .btn.ghost{background:#fff;border:1px solid var(--line);color:var(--muted)}
-    h2{font-size:15px;letter-spacing:.06em;color:var(--muted);margin:22px 0 10px}
+    h2{font-size:15px;letter-spacing:.06em;color:var(--muted);margin:22px 0 10px;display:flex;align-items:center;gap:7px}h2 svg{width:18px;height:18px;flex:none}
     h2 b{color:var(--gold)}
     .card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:16px;margin-bottom:12px;box-shadow:0 10px 30px rgba(17,24,39,.05)}
     .pname{font-weight:900;font-size:16px}
@@ -63,12 +63,12 @@
   </div></header>
 
   <div class="wrap">
-    <h2>🛒 待採購 <b id="pendCount"></b></h2>
+    <h2><svg viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8h12l-1 12H7L6 8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg> 待採購 <b id="pendCount"></b></h2>
     <div id="pendList"></div>
-    <h2>📦 已入庫(等系統入帳)</h2>
+    <h2><svg viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8l9-4 9 4-9 4-9-4z"/><path d="M3 8v8l9 4 9-4V8"/><path d="M12 12v8"/></svg> 已入庫(等系統入帳)</h2>
     <div id="arrivedList"></div>
     <p class="hint">按「已買到,入庫」後,系統會在 10 分鐘內自動加庫存並配單給客戶,不用再做任何事。</p>
-    <h2>✅ 最近入庫完成</h2>
+    <h2><svg viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5L16 9.5"/></svg> 最近入庫完成</h2>
     <div id="doneList"></div>
   </div>
 
@@ -105,7 +105,7 @@
 
       $('#pendCount').textContent=pend.length?('('+pend.length+' 項)'):'';
       var pl=$('#pendList');pl.innerHTML='';
-      if(!pend.length){pl.innerHTML='<div class="empty">目前沒有要買的東西 🎉</div>'}
+      if(!pend.length){pl.innerHTML='<div class="empty">目前沒有要買的東西</div>'}
       pend.forEach(function(r){
         var c=card(r,'<div class="need">要買 <b>'+r.need+'</b> 個</div>'+
           '<div class="row"><input type="number" min="1" value="'+r.need+'" id="q'+r.id+'">'+
