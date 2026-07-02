@@ -33,7 +33,7 @@
     .info{flex:1;min-width:0}
     .info b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .info span{font-size:11px;color:var(--muted);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .needbadge{font-size:15px;font-weight:900;color:var(--gold);white-space:nowrap;flex:none}
+    .needbadge{font-size:13px;font-weight:900;color:var(--gold);white-space:nowrap;flex:none}
     .qty{width:52px;height:38px;border:1px solid var(--line);border-radius:10px;font-size:16px;font-weight:900;text-align:center;font-family:inherit;flex:none}
     .x{border:none;background:none;color:var(--muted);font-size:17px;cursor:pointer;padding:4px;flex:none;line-height:1}
     .tag{font-size:11px;font-weight:900;padding:3px 9px;border-radius:999px;background:#eee;color:var(--muted);white-space:nowrap;flex:none}
@@ -148,9 +148,9 @@
       $('#pendCount').textContent=pend.length?('('+pend.length+')'):'';
 
       listBox('#todayList',todayRows,function(r){
-        var d=rowEl(r,'<input class="qty" type="number" min="1" value="'+r.need+'" title="買到數量">'+
-          '<button class="btn gold sm">入庫</button><button class="x" title="移出">✕</button>',
-          '缺 <b style="color:var(--gold)">'+r.need+'</b> 個　'+r.barcode);
+        var d=rowEl(r,'<span class="needbadge">缺'+r.need+'</span>'+
+          '<input class="qty" type="number" min="1" value="'+r.need+'" title="買到數量">'+
+          '<button class="btn gold sm">入庫</button><button class="x" title="移出">✕</button>');
         d.querySelector('.btn.gold').onclick=function(){
           var q=parseInt(d.querySelector('.qty').value,10)||0;if(q<1)return alert('數量要 ≥1');
           post('/store/api/admin/arrive',{id:r.id,bought:q},this,'「'+r.name+'」入庫 '+q+' 個?');
