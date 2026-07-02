@@ -93,6 +93,7 @@
   <header><div class="nav">
     <div class="brand"><span class="mark">光</span><span>採購後台<small>HIKARINOHOUSE 賣場</small></span></div>
     <div style="display:flex;gap:8px">
+      <button class="btn ghost sm" id="userBtn" title="我是誰(採購認領用)">👤</button>
       <button class="btn ghost sm" id="refreshBtn">重新整理</button>
       <button class="btn ghost sm" id="logoutBtn" title="登出">✕</button>
     </div>
@@ -108,6 +109,7 @@
   <div class="wrap">
     <div class="pane" id="pane-today">
       <h2><svg viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="16" rx="3"/><path d="M8 3v4M16 3v4M4 10h16"/><path d="M9 15l2 2 4-4"/></svg> 今日採購清單</h2>
+      <div class="assignbar" id="mineBar" style="display:none"></div>
       <div id="todayList"></div>
       <p class="hint">在店裡買到幾個就填幾個按「買到」(可跨店累加);一次買齊按「全買到」。要買的東西從「待採購」分頁按「排今天」加進來。</p>
     </div>
@@ -143,6 +145,20 @@
     $('#tokenIn').addEventListener('keydown',function(e){if(e.key==='Enter')$('#enterBtn').click()});
     $('#logoutBtn').onclick=function(){localStorage.removeItem('storeAdminToken');TOKEN='';gate(true)};
     $('#refreshBtn').onclick=function(){load()};
+
+    // 我是誰(採購認領):存在這支手機上;排今天=認領給自己,今日清單預設只看自己的
+    var ME=localStorage.getItem('storeAdminUser')||'';
+    var LAST_ROWS=[];
+    function updateUserBtn(){$('#userBtn').textContent=ME?('👤'+ME):'👤設定名字'}
+    function setMe(){
+      var n=prompt('你的名字?(採購認領用,同事之間不要重複)',ME||'');
+      if(n===null)return;
+      ME=String(n).trim().slice(0,20);
+      if(ME)localStorage.setItem('storeAdminUser',ME);else localStorage.removeItem('storeAdminUser');
+      updateUserBtn();render(LAST_ROWS);
+    }
+    $('#userBtn').onclick=setMe;
+    updateUserBtn();
     $('#imgview').onclick=function(){this.classList.remove('open')};
     $('#dmodal').onclick=function(e){if(e.target===this)this.classList.remove('open')};
 
@@ -239,10 +255,28 @@
       box.appendChild(l);
     }
 
+    function renderMineBar(todayAll,mineRows){
+      var bar=$('#mineBar');bar.innerHTML='';
+      if(!ME||!todayAll.length){bar.style.display='none';return}
+      bar.style.display='flex';
+      var MINE=localStorage.getItem('storeAdminMine')||'mine';
+      [['mine','我的 '+mineRows.length],['all','全部 '+todayAll.length]].forEach(function(x){
+        var b=document.createElement('button');
+        b.className='btn sm '+(MINE===x[0]?'dark':'ghost');
+        b.textContent=x[1];
+        b.onclick=function(){localStorage.setItem('storeAdminMine',x[0]);render(LAST_ROWS)};
+        bar.appendChild(b);
+      });
+    }
     function render(rows){
+      LAST_ROWS=rows;
       var pendAll=rows.filter(function(r){return r.status==='待採購'&&r.need>0});
       var counting=pendAll.filter(function(r){return r.bought>0});
-      var todayRows=pendAll.filter(function(r){return r.plan===TODAY&&TODAY&&r.bought<r.need});
+      var todayAll=pendAll.filter(function(r){return r.plan===TODAY&&TODAY&&r.bought<r.need});
+      // 我的=自己認領的+沒人認領的(不讓東西漏掉);沒設名字就看全部
+      var mineRows=todayAll.filter(function(r){return !r.owner||r.owner===ME});
+      var todayRows=(ME&&(localStorage.getItem('storeAdminMine')||'mine')==='mine')?mineRows:todayAll;
+      renderMineBar(todayAll,mineRows);
       var pend=pendAll.filter(function(r){return !(r.plan===TODAY&&TODAY)&&!(r.bought>0)});
       var done=rows.filter(function(r){return r.status==='入庫完成'}).slice(0,10);
 
@@ -258,15 +292,15 @@
           '<button class="btn gold sm">買到</button>'+
           '<button class="btn dark sm allbuy">全買到</button>'+
           '<button class="x" title="移出">✕</button>',
-          (r.bought>0?('已買 '+r.bought+'　'):'')+r.barcode);
+          (r.owner?('👤'+r.owner+'　'):'')+(r.bought>0?('已買 '+r.bought+'　'):'')+r.barcode);
         var inp=d.querySelector('.qty');
         d.querySelector('.btn.gold').onclick=function(){
           var q=parseInt(inp.value,10)||0;if(q<1)return alert('數量要 ≥1');
-          post('/store/api/admin/bought',{id:r.id,bought:r.bought+q},this);
+          post('/store/api/admin/bought',{id:r.id,add:q},this); // 伺服器端累加,多人同時記不互蓋
         };
         d.querySelector('.plus1').onclick=function(){inp.value=(parseInt(inp.value,10)||0)+1};
         d.querySelector('.plus3').onclick=function(){inp.value=(parseInt(inp.value,10)||0)+3};
-        d.querySelector('.allbuy').onclick=function(){post('/store/api/admin/bought',{id:r.id,bought:r.need},this)};
+        d.querySelector('.allbuy').onclick=function(){post('/store/api/admin/bought',{id:r.id,add:Math.max(0,r.need-r.bought)},this)};
         d.querySelector('.x').onclick=function(){post('/store/api/admin/plan',{id:r.id,plan:false},this)};
         return d;
       },'還沒排今天要買的,從下面按「排今天」');
@@ -274,7 +308,8 @@
       listBox('#countList',counting,function(r){
         var d=rowEl(r,'<span class="needbadge">買到 '+r.bought+' 個</span>'+
           '<input class="qty" type="number" min="1" value="'+r.bought+'" title="點收數量">'+
-          '<button class="btn gold sm">入庫</button><button class="x" title="取消買到">✕</button>');
+          '<button class="btn gold sm">入庫</button><button class="x" title="取消買到">✕</button>',
+          (r.owner?('👤'+r.owner+'　'):'')+r.barcode);
         d.querySelector('.btn.gold').onclick=function(){
           var q=parseInt(d.querySelector('.qty').value,10)||0;if(q<1)return alert('數量要 ≥1');
           post('/store/api/admin/arrive',{id:r.id,bought:q},this,'「'+r.name+'」點收入庫 '+q+' 個?庫存會立即入帳。');
@@ -285,7 +320,10 @@
 
       listBox('#pendList',pend,function(r){
         var d=rowEl(r,'<span class="needbadge">×'+r.need+'</span><button class="btn dark sm">排今天</button>');
-        d.querySelector('.btn.dark').onclick=function(){post('/store/api/admin/plan',{id:r.id,plan:true},this)};
+        d.querySelector('.btn.dark').onclick=function(){
+          if(!ME){setMe();if(!ME)return} // 先報名字才能認領
+          post('/store/api/admin/plan',{id:r.id,plan:true,owner:ME},this);
+        };
         return d;
       },'目前沒有要買的東西');
 

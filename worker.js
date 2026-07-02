@@ -697,6 +697,7 @@ const PURCHASE_FIELD = {
   已購數量: "1003020",
   狀態: "1003021",
   預計採購日: "1003023",
+  負責人: "1003025", // 採購認領:排今天時寫入,每列單一寫入者(D-027)
 };
 
 function adminAuthorized(env, request, url) {
@@ -726,6 +727,7 @@ async function adminGetPurchases(env, request, url) {
       bought: num(r["已購數量"]),
       status: r["狀態"] || "",
       plan: r["預計採購日"] || "", // 空=未排;yyyy/MM/dd=已排
+      owner: r["負責人"] || "",    // 排今天時認領;空=未認領
     }))
     .sort((a, b) => b.id - a.id);
   return json({ rows, today: jstToday() });
@@ -735,7 +737,7 @@ function jstToday() {
   return new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10).replace(/-/g, "/");
 }
 
-// POST /store/api/admin/plan {id, plan:true|false} — 排進/移出「今日採購清單」
+// POST /store/api/admin/plan {id, plan:true|false, owner} — 排進/移出「今日採購清單」(排入=認領給 owner;移出=清空認領)
 async function adminPurchasePlan(env, request, url) {
   if (!adminAuthorized(env, request, url)) return json({ error: "unauthorized" }, 401);
   let body;
@@ -743,6 +745,7 @@ async function adminPurchasePlan(env, request, url) {
   if (body.id == null) return json({ error: "缺 id" }, 400);
   const f = new URLSearchParams();
   f.set(PURCHASE_FIELD.預計採購日, body.plan ? jstToday() : "");
+  f.set(PURCHASE_FIELD.負責人, body.plan ? String(body.owner || "").trim().slice(0, 20) : "");
   const resp = await fetch(ragicUrl(env, `${PURCHASE_SHEET}/${encodeURIComponent(body.id)}`, "api&v=3"), {
     method: "POST",
     headers: { ...ragicHeaders(env), "content-type": "application/x-www-form-urlencoded" },
@@ -752,13 +755,25 @@ async function adminPurchasePlan(env, request, url) {
   return json({ ok: true });
 }
 
-// POST /store/api/admin/bought {id, bought} — 店裡記「買到N」（只記數量,狀態仍=待採購→畫面歸「待點收」;0=反悔）
+// POST /store/api/admin/bought {id, add} 或 {id, bought} — 店裡記「買到N」(只記數量,狀態仍=待採購→畫面歸「待點收」)
+// add=伺服器端累加:讀最新值再加,多人/多裝置同時記不互蓋;bought=絕對值(取消買到=0 用)
 async function adminPurchaseBought(env, request, url) {
   if (!adminAuthorized(env, request, url)) return json({ error: "unauthorized" }, 401);
   let body;
   try { body = await request.json(); } catch { return json({ error: "invalid body" }, 400); }
   if (body.id == null) return json({ error: "缺 id" }, 400);
-  const bought = Math.max(0, parseInt(body.bought, 10) || 0);
+  let bought;
+  if (body.add != null) {
+    const add = parseInt(body.add, 10) || 0;
+    const rResp = await fetch(ragicUrl(env, `${PURCHASE_SHEET}/${encodeURIComponent(body.id)}`, "api&v=3"), { headers: ragicHeaders(env) });
+    if (!rResp.ok) return json({ error: "讀取失敗" }, 502);
+    const rRaw = await rResp.json().catch(() => ({}));
+    const rec = rRaw[String(body.id)] || Object.values(rRaw)[0];
+    if (!rec) return json({ error: "找不到採購列" }, 404);
+    bought = Math.max(0, numify(rec["已購數量"]) + add);
+  } else {
+    bought = Math.max(0, parseInt(body.bought, 10) || 0);
+  }
   const f = new URLSearchParams();
   f.set(PURCHASE_FIELD.已購數量, String(bought));
   const resp = await fetch(ragicUrl(env, `${PURCHASE_SHEET}/${encodeURIComponent(body.id)}`, "api&v=3"), {
