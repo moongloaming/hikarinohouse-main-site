@@ -213,12 +213,12 @@
       rows.forEach(function(x){
         var remain=Math.max(0,x.qty-x.alloc);
         var d=document.createElement('div');d.className='drow';
-        var multi=x.o.lines.length>1?('<br><small style="color:var(--muted)">整單:'+x.o.lines.map(function(l){return (l.name||l.barcode)+'×'+l.qty+((l.alloc||0)>0?('(已配'+l.alloc+')'):'')}).join('、')+'</small>'):'';
         var def=Math.min(stock,remain);
         var right=remain<=0?'<span class="tag done">已配滿</span>'
           :def<=0?'<span class="tag no">缺貨</span>'
           :'<input class="qty" type="number" min="1" max="'+remain+'" value="'+def+'" title="這次配幾個"><button class="btn gold sm">配</button>';
-        d.innerHTML='<span><b>'+x.o.no+'</b>　'+(x.o.customer||'')+'　<span class="q">×'+x.qty+(x.alloc>0?('(已配'+x.alloc+')'):'')+'</span>'+multi+'</span>'+
+        // 只顯示「誰訂了這個商品、訂幾個」;不帶客戶整張訂單的其他內容(Owner 2026-07-02)
+        d.innerHTML='<span><b>'+x.o.no+'</b>　'+(x.o.customer||'')+'　<span class="q">×'+x.qty+(x.alloc>0?('(已配'+x.alloc+')'):'')+'</span></span>'+
           '<span style="display:flex;gap:6px;align-items:center">'+right+'</span>';
         if(remain>0&&def>0){d.querySelector('.btn').onclick=function(){
           var q=parseInt(d.querySelector('.qty').value,10)||0;
