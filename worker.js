@@ -639,10 +639,71 @@ async function getMe(env, url) {
   });
 }
 
+// ===== 賣場後台（採購用；通行碼=Cloudflare Secret STORE_ADMIN_TOKEN）=====
+const PURCHASE_SHEET = "store/7";
+const PURCHASE_FIELD = { 已購數量: "1003020", 狀態: "1003021" };
+
+function adminAuthorized(env, request, url) {
+  const t = request.headers.get("x-admin-token") || url.searchParams.get("token") || "";
+  return !!env.STORE_ADMIN_TOKEN && t === env.STORE_ADMIN_TOKEN;
+}
+
+// GET /store/api/admin/purchases — 採購清單全狀態（前端分組顯示）
+async function adminGetPurchases(env, request, url) {
+  if (!adminAuthorized(env, request, url)) return json({ error: "unauthorized" }, 401);
+  const resp = await fetch(ragicUrl(env, PURCHASE_SHEET, "api&v=3&limit=500"), { headers: ragicHeaders(env) });
+  if (!resp.ok) return json({ error: "Ragic 讀取失敗" }, 502);
+  const raw = await resp.json();
+  const num = (v) => Number(String(v == null ? "" : v).replace(/[^0-9.]/g, "")) || 0;
+  const rows = Object.values(raw)
+    .filter((r) => r && typeof r === "object" && r._ragicId !== undefined)
+    .map((r) => ({
+      id: r._ragicId,
+      date: r["日期"] || "",
+      barcode: r["商品條碼"] || "",
+      name: r["商品名稱"] || "",
+      need: num(r["需求數量"]),
+      bought: num(r["已購數量"]),
+      status: r["狀態"] || "",
+    }))
+    .sort((a, b) => b.id - a.id);
+  return json({ rows });
+}
+
+// POST /store/api/admin/arrive {id, bought} — 買到入庫（掃描器 10 分鐘內自動加庫存+配單）
+async function adminPurchaseArrive(env, request, url) {
+  if (!adminAuthorized(env, request, url)) return json({ error: "unauthorized" }, 401);
+  let body;
+  try { body = await request.json(); } catch { return json({ error: "invalid body" }, 400); }
+  const id = body.id;
+  const bought = Math.max(0, parseInt(body.bought, 10) || 0);
+  if (id == null || !bought) return json({ error: "缺 id 或 已購數量" }, 400);
+  const f = new URLSearchParams();
+  f.set(PURCHASE_FIELD.已購數量, String(bought));
+  f.set(PURCHASE_FIELD.狀態, "已入庫");
+  const resp = await fetch(ragicUrl(env, `${PURCHASE_SHEET}/${encodeURIComponent(id)}`, "api&v=3"), {
+    method: "POST",
+    headers: { ...ragicHeaders(env), "content-type": "application/x-www-form-urlencoded" },
+    body: f.toString(),
+  });
+  if (!resp.ok) return json({ error: "寫入失敗" }, 502);
+  return json({ ok: true });
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     const p = url.pathname;
+    if (p === "/store/admin") {
+      // 後台頁（頁面本身公開、資料靠通行碼）
+      return env.ASSETS.fetch(new Request(new URL("/store-admin", url.origin), request));
+    }
+    if (p === "/store/api/admin/purchases" && request.method === "GET") {
+      return adminGetPurchases(env, request, url);
+    }
+    if (p === "/store/api/admin/arrive" && request.method === "POST") {
+      return adminPurchaseArrive(env, request, url);
+    }
     if (p === "/store/api/products" && request.method === "GET") {
       return getProducts(env);
     }

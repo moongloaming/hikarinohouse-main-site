@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>採購後台｜HIKARINOHOUSE 賣場</title>
+  <meta name="robots" content="noindex,nofollow">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <style>
+    :root{--ink:#111827;--deep:#111827;--muted:#566070;--gold:#b8873e;--bg:#fbf7ef;--line:rgba(17,24,39,.12);--card:#fffdf8;--ok:#0a7d33}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif;background:var(--bg);color:var(--ink);line-height:1.6}
+    header{position:sticky;top:0;z-index:10;background:rgba(251,247,239,.94);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+    .nav{max-width:640px;margin:auto;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+    .brand{display:flex;align-items:center;gap:10px;font-weight:900}
+    .mark{width:34px;height:34px;border-radius:11px;background:var(--deep);color:#fff;display:grid;place-items:center;font-size:18px;font-weight:900}
+    .brand small{display:block;font-size:11px;color:var(--muted);font-weight:800}
+    .wrap{max-width:640px;margin:auto;padding:16px 18px 60px}
+    .btn{border:none;border-radius:999px;padding:10px 16px;font-weight:900;font-size:14px;cursor:pointer;font-family:inherit}
+    .btn.dark{background:var(--deep);color:#fff}
+    .btn.gold{background:var(--gold);color:#fff}
+    .btn.ghost{background:#fff;border:1px solid var(--line);color:var(--muted)}
+    h2{font-size:15px;letter-spacing:.06em;color:var(--muted);margin:22px 0 10px}
+    h2 b{color:var(--gold)}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:16px;margin-bottom:12px;box-shadow:0 10px 30px rgba(17,24,39,.05)}
+    .pname{font-weight:900;font-size:16px}
+    .meta{font-size:12px;color:var(--muted);margin:2px 0 10px;word-break:break-all}
+    .need{font-size:14px;font-weight:800}
+    .need b{font-size:22px;color:var(--gold)}
+    .row{display:flex;gap:10px;align-items:center;margin-top:10px}
+    .row input{width:90px;height:42px;border:1px solid var(--line);border-radius:12px;font-size:18px;font-weight:900;text-align:center;font-family:inherit}
+    .tag{display:inline-block;font-size:11px;font-weight:900;padding:3px 10px;border-radius:999px;background:#eee;color:var(--muted)}
+    .tag.arrived{background:#fff3d6;color:var(--gold)}
+    .tag.done{background:#e7f5ec;color:var(--ok)}
+    .empty{color:var(--muted);font-size:14px;padding:18px;text-align:center;background:#fff;border:1px dashed var(--line);border-radius:16px}
+    .hint{font-size:12px;color:var(--muted);margin-top:6px}
+    /* 通行碼閘 */
+    .gate{position:fixed;inset:0;background:var(--bg);display:grid;place-items:center;z-index:50}
+    .gatecard{width:min(340px,88vw);background:var(--card);border:1px solid var(--line);border-radius:24px;padding:30px;text-align:center;box-shadow:0 24px 60px rgba(17,24,39,.12)}
+    .gatecard input{width:100%;height:48px;border:1px solid var(--line);border-radius:12px;font-size:18px;text-align:center;margin:14px 0;font-family:inherit}
+    .hidden{display:none!important}
+    .err{color:#d93025;font-size:13px;font-weight:800;min-height:18px;margin:0}
+  </style>
+</head>
+<body>
+  <div class="gate" id="gate">
+    <div class="gatecard">
+      <div class="mark" style="margin:0 auto 10px">光</div>
+      <b>採購後台</b>
+      <p style="font-size:13px;color:var(--muted);margin:6px 0 0">輸入通行碼(問老闆)</p>
+      <input id="tokenIn" type="password" placeholder="通行碼" autocomplete="off">
+      <p class="err" id="gateErr"></p>
+      <button class="btn dark" style="width:100%" id="enterBtn">進入</button>
+    </div>
+  </div>
+
+  <header><div class="nav">
+    <div class="brand"><span class="mark">光</span><span>採購後台<small>HIKARINOHOUSE 賣場</small></span></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn ghost" id="refreshBtn">重新整理</button>
+      <button class="btn ghost" id="logoutBtn" title="登出">✕</button>
+    </div>
+  </div></header>
+
+  <div class="wrap">
+    <h2>🛒 待採購 <b id="pendCount"></b></h2>
+    <div id="pendList"></div>
+    <h2>📦 已入庫(等系統入帳)</h2>
+    <div id="arrivedList"></div>
+    <p class="hint">按「已買到,入庫」後,系統會在 10 分鐘內自動加庫存並配單給客戶,不用再做任何事。</p>
+    <h2>✅ 最近入庫完成</h2>
+    <div id="doneList"></div>
+  </div>
+
+  <script>
+    var $=function(s){return document.querySelector(s)};
+    var TOKEN=localStorage.getItem('storeAdminToken')||'';
+    function headers(){return {'x-admin-token':TOKEN,'content-type':'application/json'}}
+
+    function gate(show,msg){$('#gate').classList.toggle('hidden',!show);$('#gateErr').textContent=msg||''}
+    $('#enterBtn').onclick=function(){TOKEN=$('#tokenIn').value.trim();if(!TOKEN)return;localStorage.setItem('storeAdminToken',TOKEN);load()};
+    $('#tokenIn').addEventListener('keydown',function(e){if(e.key==='Enter')$('#enterBtn').click()});
+    $('#logoutBtn').onclick=function(){localStorage.removeItem('storeAdminToken');TOKEN='';gate(true)};
+    $('#refreshBtn').onclick=function(){load()};
+
+    function load(){
+      if(!TOKEN){gate(true);return}
+      fetch('/store/api/admin/purchases',{headers:headers()}).then(function(r){
+        if(r.status===401){gate(true,'通行碼不對,再試一次');localStorage.removeItem('storeAdminToken');TOKEN='';throw 0}
+        return r.json();
+      }).then(function(d){gate(false);render((d&&d.rows)||[])}).catch(function(e){if(e!==0)alert('載入失敗,請重試')});
+    }
+
+    function card(r,inner){
+      var d=document.createElement('div');d.className='card';
+      d.innerHTML='<div class="pname">'+(r.name||'(未命名商品)')+'</div>'+
+        '<div class="meta">條碼 '+r.barcode+'　'+(r.date||'')+'</div>'+inner;
+      return d;
+    }
+
+    function render(rows){
+      var pend=rows.filter(function(r){return r.status==='待採購'&&r.need>0});
+      var arrived=rows.filter(function(r){return r.status==='已入庫'});
+      var done=rows.filter(function(r){return r.status==='入庫完成'}).slice(0,10);
+
+      $('#pendCount').textContent=pend.length?('('+pend.length+' 項)'):'';
+      var pl=$('#pendList');pl.innerHTML='';
+      if(!pend.length){pl.innerHTML='<div class="empty">目前沒有要買的東西 🎉</div>'}
+      pend.forEach(function(r){
+        var c=card(r,'<div class="need">要買 <b>'+r.need+'</b> 個</div>'+
+          '<div class="row"><input type="number" min="1" value="'+r.need+'" id="q'+r.id+'">'+
+          '<button class="btn gold" style="flex:1">已買到,入庫</button></div>');
+        c.querySelector('.btn.gold').onclick=function(){
+          var q=parseInt($('#q'+r.id).value,10)||0;if(q<1)return alert('數量要 ≥1');
+          if(!confirm('「'+r.name+'」入庫 '+q+' 個?'))return;
+          this.disabled=true;this.textContent='送出中…';
+          fetch('/store/api/admin/arrive',{method:'POST',headers:headers(),body:JSON.stringify({id:r.id,bought:q})})
+            .then(function(x){return x.json()}).then(function(d){if(d&&d.ok){load()}else{alert('失敗:'+((d&&d.error)||'?'));load()}})
+            .catch(function(){alert('連線失敗');load()});
+        };
+        pl.appendChild(c);
+      });
+
+      var al=$('#arrivedList');al.innerHTML='';
+      if(!arrived.length){al.innerHTML='<div class="empty">－</div>'}
+      arrived.forEach(function(r){al.appendChild(card(r,'<span class="tag arrived">已入庫 '+r.bought+' 個・系統處理中</span>'))});
+
+      var dl=$('#doneList');dl.innerHTML='';
+      if(!done.length){dl.innerHTML='<div class="empty">－</div>'}
+      done.forEach(function(r){dl.appendChild(card(r,'<span class="tag done">入庫完成 '+r.bought+' 個</span>'))});
+    }
+
+    load();
+  </script>
+</body>
+</html>
