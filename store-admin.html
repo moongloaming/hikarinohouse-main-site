@@ -163,7 +163,7 @@
       listBox('#todayList',todayRows,function(r){
         var left=r.need-r.bought;
         var d=rowEl(r,'<span class="needbadge">'+(r.bought>0?('還差 '+left+' 個'):('缺 '+r.need+' 個'))+'</span>'+
-          '<input class="qty" type="number" min="1" value="'+left+'" title="這次買到幾個">'+
+          '<input class="qty" type="number" min="0" value="0" title="這次買到幾個">'+
           '<button class="btn ghost sm plus1">+1</button><button class="btn ghost sm plus3">+3</button>'+
           '<button class="btn gold sm">買到</button>'+
           '<button class="btn dark sm allbuy">全買到</button>'+
