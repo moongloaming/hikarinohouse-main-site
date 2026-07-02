@@ -740,17 +740,41 @@ function jstToday() {
 }
 
 // POST /store/api/admin/plan {id, plan:true|false, owner, qty} — 排進/移出「今日採購清單」
-// 排入=認領給 owner＋指定今日目標數量(可小於缺口);移出=認領/目標一併清空
+// 排入=認領給 owner＋指定數量;數量<缺口 → 當場「拆列」:本列縮成要買的量,餘量另開一列留在待採購(可再派給別人)
+// 移出=認領/目標一併清空
 async function adminPurchasePlan(env, request, url) {
   if (!adminAuthorized(env, request, url)) return json({ error: "unauthorized" }, 401);
   let body;
   try { body = await request.json(); } catch { return json({ error: "invalid body" }, 400); }
   if (body.id == null) return json({ error: "缺 id" }, 400);
   const qty = Math.max(0, parseInt(body.qty, 10) || 0);
+  let splitRemain = 0;
+  if (body.plan && qty > 0) {
+    // 讀最新缺口,決定要不要拆列
+    const rResp = await fetch(ragicUrl(env, `${PURCHASE_SHEET}/${encodeURIComponent(body.id)}`, "api&v=3"), { headers: ragicHeaders(env) });
+    if (!rResp.ok) return json({ error: "讀取失敗" }, 502);
+    const rRaw = await rResp.json().catch(() => ({}));
+    const rec = rRaw[String(body.id)] || Object.values(rRaw)[0];
+    if (!rec) return json({ error: "找不到採購列" }, 404);
+    const need = numify(rec["需求數量"]);
+    if (qty < need) {
+      splitRemain = need - qty;
+      const nf = new URLSearchParams();
+      nf.set(PURCHASE_FIELD.日期, jstToday());
+      nf.set(PURCHASE_FIELD.商品條碼, String(rec["商品條碼"] || "").trim());
+      nf.set(PURCHASE_FIELD.商品名稱, rec["商品名稱"] || "");
+      nf.set(PURCHASE_FIELD.需求數量, String(splitRemain));
+      nf.set(PURCHASE_FIELD.已購數量, "0");
+      nf.set(PURCHASE_FIELD.狀態, "待採購");
+      const cResp = await ragicPost(env, PURCHASE_SHEET, nf);
+      if (!cResp.ok) return json({ error: "拆列失敗" }, 502); // 先開餘量列,失敗就不動原列
+    }
+  }
   const f = new URLSearchParams();
   f.set(PURCHASE_FIELD.預計採購日, body.plan ? jstToday() : "");
   f.set(PURCHASE_FIELD.負責人, body.plan ? String(body.owner || "").trim().slice(0, 20) : "");
   f.set(PURCHASE_FIELD.今日目標, body.plan && qty > 0 ? String(qty) : "");
+  if (splitRemain > 0) f.set(PURCHASE_FIELD.需求數量, String(qty)); // 本列縮成這次要買的量
   const resp = await fetch(ragicUrl(env, `${PURCHASE_SHEET}/${encodeURIComponent(body.id)}`, "api&v=3"), {
     method: "POST",
     headers: { ...ragicHeaders(env), "content-type": "application/x-www-form-urlencoded" },
@@ -926,8 +950,12 @@ async function syncPurchaseShortage(env, orders, prodMap) {
   if (!resp.ok) { console.log("sync: 待採購清單讀取失敗 HTTP " + resp.status); return; }
   const raw = await resp.json().catch(() => ({}));
   const pending = Object.values(raw).filter((r) => r && typeof r === "object" && r._ragicId !== undefined);
+  // 拆列後同一商品可有多列(不同負責人/未排餘量)→ 依條碼分組對帳:Σ(各列需求) 跟上缺口
   const byBarcode = {};
-  for (const r of pending) byBarcode[String(r["商品條碼"] || "").trim()] = r;
+  for (const r of pending) {
+    const bc = String(r["商品條碼"] || "").trim();
+    (byBarcode[bc] = byBarcode[bc] || []).push(r);
+  }
   let writes = 0;
   const MAX_WRITES = 40; // 防失控
   const setRow = async (rid, fields) => {
@@ -936,27 +964,48 @@ async function syncPurchaseShortage(env, orders, prodMap) {
     await ragicPost(env, `${PURCHASE_SHEET}/${rid}`, f);
     writes++;
   };
+  const isPlanned = (r) => !!String(r["預計採購日"] || "").trim() || !!String(r["負責人"] || "").trim();
   for (const bc in demand) {
     if (writes >= MAX_WRITES) return;
     const p = prodMap[bc];
     const shortage = Math.max(0, demand[bc] - Math.max(0, (p && p.stock) || 0));
-    const ex = byBarcode[bc];
+    const rows = (byBarcode[bc] || []).slice().sort((a, b) => a._ragicId - b._ragicId);
     if (shortage <= 0) {
-      if (ex) await setRow(ex._ragicId, { [PURCHASE_FIELD.狀態]: "取消" });
+      for (const r of rows) { if (writes >= MAX_WRITES) return; await setRow(r._ragicId, { [PURCHASE_FIELD.狀態]: "取消" }); }
       continue;
     }
-    if (ex) {
-      if (numify(ex["需求數量"]) !== shortage) await setRow(ex._ragicId, { [PURCHASE_FIELD.需求數量]: String(shortage) });
-    } else {
-      const f = new URLSearchParams();
-      f.set(PURCHASE_FIELD.日期, jstToday());
-      f.set(PURCHASE_FIELD.商品條碼, bc);
-      f.set(PURCHASE_FIELD.商品名稱, p ? p.zh || p.ja || "" : "");
-      f.set(PURCHASE_FIELD.需求數量, String(shortage));
-      f.set(PURCHASE_FIELD.已購數量, "0");
-      f.set(PURCHASE_FIELD.狀態, "待採購");
-      await ragicPost(env, PURCHASE_SHEET, f);
-      writes++;
+    const total = rows.reduce((s, r) => s + numify(r["需求數量"]), 0);
+    const delta = shortage - total;
+    if (delta > 0) {
+      // 缺口變多:加到未排未認領的列;沒有就開新列(不動別人已認領的任務量)
+      const open = rows.find((r) => !isPlanned(r));
+      if (open) {
+        await setRow(open._ragicId, { [PURCHASE_FIELD.需求數量]: String(numify(open["需求數量"]) + delta) });
+      } else {
+        const f = new URLSearchParams();
+        f.set(PURCHASE_FIELD.日期, jstToday());
+        f.set(PURCHASE_FIELD.商品條碼, bc);
+        f.set(PURCHASE_FIELD.商品名稱, p ? p.zh || p.ja || "" : "");
+        f.set(PURCHASE_FIELD.需求數量, String(delta));
+        f.set(PURCHASE_FIELD.已購數量, "0");
+        f.set(PURCHASE_FIELD.狀態, "待採購");
+        await ragicPost(env, PURCHASE_SHEET, f);
+        writes++;
+      }
+    } else if (delta < 0) {
+      // 缺口變少:先砍未排列、再砍已排列(都從新到舊);下限=該列已購數(買到的不砍);歸零且沒買到→取消
+      let cut = -delta;
+      const order = rows.filter((r) => !isPlanned(r)).reverse().concat(rows.filter(isPlanned).reverse());
+      for (const r of order) {
+        if (cut <= 0 || writes >= MAX_WRITES) break;
+        const n = numify(r["需求數量"]);
+        const floor = Math.max(0, numify(r["已購數量"]));
+        const newNeed = Math.max(floor, n - cut);
+        if (newNeed >= n) continue;
+        cut -= n - newNeed;
+        if (newNeed <= 0) await setRow(r._ragicId, { [PURCHASE_FIELD.狀態]: "取消" });
+        else await setRow(r._ragicId, { [PURCHASE_FIELD.需求數量]: String(newNeed) });
+      }
     }
   }
   // 需求消失(訂單都配完/結案)→ 殘留待採購列取消
