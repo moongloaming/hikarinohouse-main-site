@@ -40,7 +40,7 @@
     .pname{font-size:15px;font-weight:800;margin:4px 0 2px;line-height:1.35}
     .pja{font-size:12px;color:var(--muted);height:2.6em;overflow:hidden;margin-bottom:10px}
     .price{font-size:20px;font-weight:900;margin-top:auto}
-    .price small{font-size:12px;color:var(--muted);font-weight:800}
+    .price small{font-size:12px;color:var(--muted);font-weight:800;white-space:nowrap}
     .pbreak{font-size:11px;color:var(--muted);font-weight:700;margin-top:3px}
     .prod .thumb{position:relative}
     .ptag{position:absolute;top:8px;left:8px;font-size:11px;font-weight:800;padding:3px 9px;border-radius:999px;color:#fff}
@@ -218,9 +218,9 @@
     var FEE_RATE=0.1; // 代購費率；後端「系統設定」有值時會覆蓋（loadProducts 取得）
     var products=[],cart={},cat='全部',q='';
     var $=function(s){return document.querySelector(s)};
-    var yen=function(n){return '¥'+Math.round(n).toLocaleString()};
+    var yen=function(n){return '¥ '+Math.round(n).toLocaleString()+' JPY'};
     var jpyRate=0; // JPY→TWD（loadProducts 取得；0=暫無匯率,不顯示台幣參考價）
-    var nt=function(n){return 'NT$'+Math.round(n).toLocaleString()};
+    var nt=function(n){return '$ '+Math.round(n).toLocaleString()+' TWD'};
     var ntApprox=function(y){return jpyRate>0?('（約 '+nt(y*jpyRate)+'）'):''}; // 台幣參考價,實際依下單匯率快照
     // 商品有指定代購費率(含0)就用它,否則用全站/會員費率
     var rateOf=function(p){return (p&&p.feeRate!=null&&p.feeRate!=='')?Number(p.feeRate):FEE_RATE;};
@@ -288,7 +288,7 @@
           '<div class="pcat">'+(p.cat||'')+'</div>'+
           '<div class="pname">'+p.zh+'</div>'+
           '<div class="pja">'+(p.ja||'')+'</div>'+
-          '<div class="price">'+yen(toHand(p))+' <small>到手價'+ntApprox(toHand(p))+'</small></div>'+
+          '<div class="price"><small>到手價 </small>'+yen(toHand(p))+' <small>'+ntApprox(toHand(p))+'</small></div>'+
           '<div class="pbreak">日本原價 '+yen(p.price)+'　＋代購費'+pct(rateOf(p))+'%</div>'+
           btn+
           '</div>';
@@ -305,7 +305,7 @@
       $('#mcat').textContent=p.cat||'';
       $('#mname').textContent=p.zh||'';
       $('#mja').textContent=p.ja||'';
-      $('#mprice').innerHTML=yen(toHand(p))+' <small>到手價'+ntApprox(toHand(p))+'</small>';
+      $('#mprice').innerHTML='<small>到手價 </small>'+yen(toHand(p))+' <small>'+ntApprox(toHand(p))+'</small>';
       $('#mfee').innerHTML='日本原價 '+yen(p.price)+'　＋代購費'+pct(rateOf(p))+'%';
       $('#mdesc').textContent=p.desc||'';
       $('#mdesc').style.display=p.desc?'block':'none';
