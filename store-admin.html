@@ -148,7 +148,7 @@
       $('#pendCount').textContent=pend.length?('('+pend.length+')'):'';
 
       listBox('#todayList',todayRows,function(r){
-        var d=rowEl(r,'<span class="needbadge">缺'+r.need+'</span>'+
+        var d=rowEl(r,'<span class="needbadge">缺 '+r.need+' 個</span>'+
           '<input class="qty" type="number" min="1" value="'+r.need+'" title="買到數量">'+
           '<button class="btn gold sm">入庫</button><button class="x" title="移出">✕</button>');
         d.querySelector('.btn.gold').onclick=function(){
