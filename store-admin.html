@@ -121,17 +121,19 @@
 
     function load(){
       if(!TOKEN){gate(true);return}
-      Promise.all([
-        fetch('/store/api/admin/purchases',{headers:headers()}),
-        fetch('/store/api/admin/waiting',{headers:headers()})
-      ]).then(function(rs){
-        if(rs[0].status===401||rs[1].status===401){gate(true,'通行碼不對,再試一次');localStorage.removeItem('storeAdminToken');TOKEN='';throw 0}
-        return Promise.all([rs[0].json(),rs[1].json()]);
-      }).then(function(ds){
+      // 先打 waiting:它會當場把缺貨算好寫進採購清單 → 再讀 purchases 就是最新的(重新整理即見,不用等排程)
+      var wjson;
+      fetch('/store/api/admin/waiting',{headers:headers()}).then(function(r){
+        if(r.status===401){gate(true,'通行碼不對,再試一次');localStorage.removeItem('storeAdminToken');TOKEN='';throw 0}
+        return r.json();
+      }).then(function(w){
+        wjson=w;
+        return fetch('/store/api/admin/purchases',{headers:headers()});
+      }).then(function(r){return r.json()}).then(function(p){
         gate(false);
-        TODAY=(ds[0]&&ds[0].today)||'';
-        WAIT=(ds[1]&&ds[1].orders)||[];PRODS=(ds[1]&&ds[1].products)||{};
-        render((ds[0]&&ds[0].rows)||[]);
+        TODAY=(p&&p.today)||'';
+        WAIT=(wjson&&wjson.orders)||[];PRODS=(wjson&&wjson.products)||{};
+        render((p&&p.rows)||[]);
         renderWait();
       }).catch(function(e){if(e!==0)alert('載入失敗,請重試')});
     }

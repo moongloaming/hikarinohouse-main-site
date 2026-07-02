@@ -689,7 +689,15 @@ async function getMe(env, url) {
 
 // ===== 賣場後台（採購用；通行碼=Cloudflare Secret STORE_ADMIN_TOKEN）=====
 const PURCHASE_SHEET = "store/7";
-const PURCHASE_FIELD = { 已購數量: "1003020", 狀態: "1003021", 預計採購日: "1003023" };
+const PURCHASE_FIELD = {
+  日期: "1003016",
+  商品條碼: "1003017",
+  商品名稱: "1003018",
+  需求數量: "1003019",
+  已購數量: "1003020",
+  狀態: "1003021",
+  預計採購日: "1003023",
+};
 
 function adminAuthorized(env, request, url) {
   const t = request.headers.get("x-admin-token") || url.searchParams.get("token") || "";
@@ -858,7 +866,67 @@ async function adminGetWaiting(env, request, url) {
   for (const bc in prodMap) {
     products[bc] = { name: prodMap[bc].zh || prodMap[bc].ja || "", img: prodMap[bc].img || "", stock: prodMap[bc].stock || 0 };
   }
+  // 缺口即時同步:開後台就把待採購算好(Owner 2026-07-02:「不用十分鐘 就重新整理啊」);失敗不擋頁面
+  try { await syncPurchaseShortage(env, orders, prodMap); } catch { /* 下次重整或 GAS 備援再補 */ }
   return json({ orders, products });
+}
+
+// 缺口彙總 → 採購清單 upsert(原 GAS 每 10 分鐘掃,改為開採購後台當下即時算;冪等,值沒變不寫)
+// 缺口 = Σ(數量−已配) − 現有庫存;歸零/需求消失 → 該待採購列自動「取消」
+async function syncPurchaseShortage(env, orders, prodMap) {
+  const demand = {}; // {barcode: 總還需數}
+  for (const o of orders) {
+    for (const l of o.lines) {
+      const remain = Math.max(0, (l.qty || 0) - (l.alloc || 0));
+      if (remain > 0) demand[l.barcode] = (demand[l.barcode] || 0) + remain;
+    }
+  }
+  const resp = await fetch(
+    ragicUrl(env, PURCHASE_SHEET, `api&v=3&where=${PURCHASE_FIELD.狀態},eq,${encodeURIComponent("待採購")}&limit=500`),
+    { headers: ragicHeaders(env) }
+  );
+  if (!resp.ok) return;
+  const raw = await resp.json().catch(() => ({}));
+  const pending = Object.values(raw).filter((r) => r && typeof r === "object" && r._ragicId !== undefined);
+  const byBarcode = {};
+  for (const r of pending) byBarcode[String(r["商品條碼"] || "").trim()] = r;
+  let writes = 0;
+  const MAX_WRITES = 40; // 防失控
+  const setRow = async (rid, fields) => {
+    const f = new URLSearchParams();
+    for (const k in fields) f.set(k, fields[k]);
+    await ragicPost(env, `${PURCHASE_SHEET}/${rid}`, f);
+    writes++;
+  };
+  for (const bc in demand) {
+    if (writes >= MAX_WRITES) return;
+    const p = prodMap[bc];
+    const shortage = Math.max(0, demand[bc] - Math.max(0, (p && p.stock) || 0));
+    const ex = byBarcode[bc];
+    if (shortage <= 0) {
+      if (ex) await setRow(ex._ragicId, { [PURCHASE_FIELD.狀態]: "取消" });
+      continue;
+    }
+    if (ex) {
+      if (numify(ex["需求數量"]) !== shortage) await setRow(ex._ragicId, { [PURCHASE_FIELD.需求數量]: String(shortage) });
+    } else {
+      const f = new URLSearchParams();
+      f.set(PURCHASE_FIELD.日期, jstToday());
+      f.set(PURCHASE_FIELD.商品條碼, bc);
+      f.set(PURCHASE_FIELD.商品名稱, p ? p.zh || p.ja || "" : "");
+      f.set(PURCHASE_FIELD.需求數量, String(shortage));
+      f.set(PURCHASE_FIELD.已購數量, "0");
+      f.set(PURCHASE_FIELD.狀態, "待採購");
+      await ragicPost(env, PURCHASE_SHEET, f);
+      writes++;
+    }
+  }
+  // 需求消失(訂單都配完/結案)→ 殘留待採購列取消
+  for (const r of pending) {
+    if (writes >= MAX_WRITES) return;
+    const bc = String(r["商品條碼"] || "").trim();
+    if (!(bc in demand)) await setRow(r._ragicId, { [PURCHASE_FIELD.狀態]: "取消" });
+  }
 }
 
 // ===== 漸進配貨（Owner 2026-07-02 指示）=====
