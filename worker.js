@@ -337,6 +337,7 @@ async function getProductMap(env) {
         ja: r["產品名稱"] || "",
         feeRate: num(r["代購費率"]),
         status: r["商品狀態"] || "",
+        img: r["圖片"] ? `/store/api/img?f=${encodeURIComponent(r["圖片"])}` : "",
       };
     }
   } catch (e) {
@@ -651,13 +652,17 @@ function adminAuthorized(env, request, url) {
 // GET /store/api/admin/purchases — 採購清單全狀態（前端分組顯示）
 async function adminGetPurchases(env, request, url) {
   if (!adminAuthorized(env, request, url)) return json({ error: "unauthorized" }, 401);
-  const resp = await fetch(ragicUrl(env, PURCHASE_SHEET, "api&v=3&limit=500"), { headers: ragicHeaders(env) });
+  const [resp, prodMap] = await Promise.all([
+    fetch(ragicUrl(env, PURCHASE_SHEET, "api&v=3&limit=500"), { headers: ragicHeaders(env) }),
+    getProductMap(env),
+  ]);
   if (!resp.ok) return json({ error: "Ragic 讀取失敗" }, 502);
   const raw = await resp.json();
   const num = (v) => Number(String(v == null ? "" : v).replace(/[^0-9.]/g, "")) || 0;
   const rows = Object.values(raw)
     .filter((r) => r && typeof r === "object" && r._ragicId !== undefined)
     .map((r) => ({
+      img: (prodMap[String(r["商品條碼"] || "").trim()] || {}).img || "",
       id: r._ragicId,
       date: r["日期"] || "",
       barcode: r["商品條碼"] || "",
@@ -683,6 +688,33 @@ async function adminPurchasePlan(env, request, url) {
   if (body.id == null) return json({ error: "缺 id" }, 400);
   const f = new URLSearchParams();
   f.set(PURCHASE_FIELD.預計採購日, body.plan ? jstToday() : "");
+  const resp = await fetch(ragicUrl(env, `${PURCHASE_SHEET}/${encodeURIComponent(body.id)}`, "api&v=3"), {
+    method: "POST",
+    headers: { ...ragicHeaders(env), "content-type": "application/x-www-form-urlencoded" },
+    body: f.toString(),
+  });
+  if (!resp.ok) return json({ error: "寫入失敗" }, 502);
+  return json({ ok: true });
+}
+
+// POST /store/api/admin/unarrive {id} — 誤按入庫的退回（只允許狀態=已入庫；入庫完成=庫存已入帳,不可退）
+async function adminPurchaseUnarrive(env, request, url) {
+  if (!adminAuthorized(env, request, url)) return json({ error: "unauthorized" }, 401);
+  let body;
+  try { body = await request.json(); } catch { return json({ error: "invalid body" }, 400); }
+  if (body.id == null) return json({ error: "缺 id" }, 400);
+  const rResp = await fetch(ragicUrl(env, `${PURCHASE_SHEET}/${encodeURIComponent(body.id)}`, "api&v=3"), { headers: ragicHeaders(env) });
+  if (!rResp.ok) return json({ error: "讀取失敗" }, 502);
+  const rRaw = await rResp.json();
+  const rec = rRaw[String(body.id)] || Object.values(rRaw)[0];
+  if (!rec) return json({ error: "找不到資料" }, 404);
+  if ((rec["狀態"] || "") !== "已入庫") {
+    return json({ error: "系統已入帳（入庫完成），不能退回；請聯絡管理者調整庫存" }, 409);
+  }
+  const f = new URLSearchParams();
+  f.set(PURCHASE_FIELD.狀態, "待採購");
+  f.set(PURCHASE_FIELD.已購數量, "0");
+  f.set(PURCHASE_FIELD.預計採購日, jstToday()); // 退回後留在今日清單
   const resp = await fetch(ragicUrl(env, `${PURCHASE_SHEET}/${encodeURIComponent(body.id)}`, "api&v=3"), {
     method: "POST",
     headers: { ...ragicHeaders(env), "content-type": "application/x-www-form-urlencoded" },
@@ -728,6 +760,9 @@ export default {
     }
     if (p === "/store/api/admin/plan" && request.method === "POST") {
       return adminPurchasePlan(env, request, url);
+    }
+    if (p === "/store/api/admin/unarrive" && request.method === "POST") {
+      return adminPurchaseUnarrive(env, request, url);
     }
     if (p === "/store/api/products" && request.method === "GET") {
       return getProducts(env);
