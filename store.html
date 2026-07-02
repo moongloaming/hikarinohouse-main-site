@@ -40,11 +40,12 @@
     .prod{background:none;border:none;border-radius:0;box-shadow:none;overflow:hidden;display:flex;flex-direction:column}
     .thumb{aspect-ratio:1/1;background:#f0eee0;display:grid;place-items:center;color:#c9bda6;font-size:46px}
     .thumb img{width:100%;height:100%;object-fit:cover}
-    .pbody{padding:14px 2px 0;display:flex;flex-direction:column;flex:1}
+    /* A 版卡片:置中、行距大、單一價格(円税込);分類/原價/費率移到詳情 */
+    .pbody{padding:18px 6px 0;display:flex;flex-direction:column;flex:1;align-items:center;text-align:center}
     .pcat{font-size:10px;color:var(--muted);font-weight:500;letter-spacing:.24em}
-    .pname{font-size:16px;font-weight:600;font-family:var(--serif);margin:6px 0 2px;line-height:1.4}
-    .pja{font-size:12px;color:var(--muted);height:2.4em;overflow:hidden;margin-bottom:12px}
-    .price{font-size:16px;font-weight:500;margin-top:auto}
+    .pname{font-size:16px;font-weight:600;font-family:var(--serif);margin:0 0 6px;line-height:1.5}
+    .pja{font-size:12px;color:var(--muted);height:2.4em;overflow:hidden;margin-bottom:14px;line-height:1.9}
+    .price{font-size:15px;font-weight:500;margin-top:auto;letter-spacing:.04em}
     .price small{font-size:11px;color:var(--muted);font-weight:500;white-space:nowrap}
     .pbreak{font-size:11px;color:var(--muted);font-weight:400;margin-top:4px}
     .prod .thumb{position:relative}
@@ -228,7 +229,8 @@
     var page=1,totalCount=0,hasMore=false,loadingMore=false;
     var PS=parseInt(new URLSearchParams(location.search).get('ps'),10)||50; // 每頁筆數(?ps= 可調,示範/測試用)
     var $=function(s){return document.querySelector(s)};
-    var yen=function(n){return '¥ '+Math.round(n).toLocaleString()+' JPY'};
+    var yen=function(n){return Math.round(n).toLocaleString()+'円'};
+    var yenTax=function(n){return yen(n)+'(税込)'}; // 卡片/合計的日式標價(Owner 指定)
     var jpyRate=0; // JPY→TWD（loadProducts 取得；0=暫無匯率,不顯示台幣參考價）
     var nt=function(n){return '$ '+Math.round(n).toLocaleString()+' TWD'};
     var ntApprox=function(y){return jpyRate>0?('（約 '+nt(y*jpyRate)+'）'):''}; // 台幣參考價,實際依下單匯率快照
@@ -313,11 +315,9 @@
                        :'<button class="addbtn">'+(preorder?'預購下單':'加入購物車')+'</button>';
         d.innerHTML='<div class="thumb">'+thumb+tag+'</div>'+
           '<div class="pbody">'+
-          '<div class="pcat">'+(p.cat||'')+'</div>'+
           '<div class="pname">'+p.zh+'</div>'+
           '<div class="pja">'+(p.ja||'')+'</div>'+
-          '<div class="price"><small>到手價 </small>'+yen(toHand(p))+' <small>'+ntApprox(toHand(p))+'</small></div>'+
-          '<div class="pbreak">日本原價 '+yen(p.price)+'　＋代購費'+pct(rateOf(p))+'%</div>'+
+          '<div class="price">'+yenTax(toHand(p))+'</div>'+
           btn+
           '</div>';
         if(!soldout)d.querySelector('.addbtn').onclick=function(){cart[p.id]=(cart[p.id]||0)+1;updateCart()};
@@ -341,7 +341,7 @@
       $('#mcat').textContent=p.cat||'';
       $('#mname').textContent=p.zh||'';
       $('#mja').textContent=p.ja||'';
-      $('#mprice').innerHTML='<small>到手價 </small>'+yen(toHand(p))+' <small>'+ntApprox(toHand(p))+'</small>';
+      $('#mprice').innerHTML=yenTax(toHand(p))+' <small>'+ntApprox(toHand(p))+'</small>';
       $('#mfee').innerHTML='日本原價 '+yen(p.price)+'　＋代購費'+pct(rateOf(p))+'%';
       $('#mdesc').textContent=p.desc||'';
       $('#mdesc').style.display=p.desc?'block':'none';
@@ -360,7 +360,7 @@
       var sub=total();var grand=toHandTotal();var fee=grand-sub;
       $('#sub').textContent=yen(sub);
       $('#fee').textContent=yen(fee);
-      $('#total').innerHTML=yen(grand)+(jpyRate>0?' <small style="color:var(--muted);font-weight:800">'+ntApprox(grand)+'</small>':'');
+      $('#total').innerHTML=yenTax(grand)+(jpyRate>0?' <small style="color:var(--muted);font-weight:500">'+ntApprox(grand)+'</small>':'');
       $('#submit').disabled=(n===0);
       var box=$('#ditems');box.innerHTML='';
       var keys=Object.keys(cart).filter(function(k){return cart[k]>0});
@@ -368,7 +368,7 @@
       keys.forEach(function(k){
         var p=KNOWN[k];if(!p)return;
         var row=document.createElement('div');row.className='citem';
-        row.innerHTML='<div class="ci-n"><b class="lnk">'+p.zh+'</b><span>'+yen(toHand(p))+' <small style="color:var(--muted)">到手</small></span></div>';
+        row.innerHTML='<div class="ci-n"><b class="lnk">'+p.zh+'</b><span>'+yen(toHand(p))+'</span></div>';
         (function(pp){ row.querySelector('.ci-n b').onclick=function(){ openDetail(pp); }; })(p);
         var qd=document.createElement('div');qd.className='qty';
         var m=document.createElement('button');m.textContent='−';m.onclick=function(){cart[k]--;if(cart[k]<=0)delete cart[k];updateCart()};
