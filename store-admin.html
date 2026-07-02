@@ -98,13 +98,9 @@
     <p class="hint">按「入庫」= 庫存立即入帳(數字以點收為準);之後到下面「待配單」勾選配貨。</p>
     <h2><svg viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8h12l-1 12H7L6 8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg> 待採購（未排） <b id="pendCount"></b></h2>
     <div id="pendList"></div>
-    <h2><svg viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h10"/><path d="M18 16l2 2 3-3" transform="translate(-2,0)"/></svg> 待配單（勾選後配貨） <b id="waitCount"></b></h2>
-    <div class="assignbar" id="assignbar" style="display:none">
-      <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" class="chk" id="chkAll"> 全勾</label>
-      <button class="btn gold sm" id="assignBtn" style="margin-left:auto">自動配單</button>
-    </div>
+    <h2><svg viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg> 待配單 <b id="waitCount"></b></h2>
     <div id="waitList"></div>
-    <p class="hint">勾選訂單按「自動配單」→ 依下單順序、整單庫存夠才配;配單後系統自動 LINE 通知客人結單。點商品名稱可看「誰訂了這個」。</p>
+    <p class="hint">「自動配單」= 這個商品的訂單依下單順序配到庫存用完(整張單都夠才配);要人工指定,點商品進去對單配。配單後系統自動 LINE 通知客人結單。</p>
     <h2><svg viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5L16 9.5"/></svg> 最近入庫完成</h2>
     <div id="doneList"></div>
   </div>
@@ -112,7 +108,7 @@
   <script>
     var $=function(s){return document.querySelector(s)};
     var TOKEN=localStorage.getItem('storeAdminToken')||'';var TODAY='';
-    var WAIT=[];var STOCKS={};
+    var WAIT=[];var PRODS={};
     function headers(){return {'x-admin-token':TOKEN,'content-type':'application/json'}}
 
     function gate(show,msg){$('#gate').classList.toggle('hidden',!show);$('#gateErr').textContent=msg||''}
@@ -134,7 +130,7 @@
       }).then(function(ds){
         gate(false);
         TODAY=(ds[0]&&ds[0].today)||'';
-        WAIT=(ds[1]&&ds[1].orders)||[];STOCKS=(ds[1]&&ds[1].stocks)||{};
+        WAIT=(ds[1]&&ds[1].orders)||[];PRODS=(ds[1]&&ds[1].products)||{};
         render((ds[0]&&ds[0].rows)||[]);
         renderWait();
       }).catch(function(e){if(e!==0)alert('載入失敗,請重試')});
@@ -150,20 +146,39 @@
         .catch(function(){alert('連線失敗');load()});
     }
 
-    // 商品需求明細:誰訂了這個
+    // 商品需求明細:誰訂了這個(每張單可人工配單;整單庫存夠才可按)
+    function orderAssignable(o){
+      return o.lines.length&&o.lines.every(function(l){return ((PRODS[l.barcode]||{}).stock||0)>=l.qty});
+    }
+    function assignIds(ids,btn){
+      if(btn)btn.disabled=true;
+      fetch('/store/api/admin/assign',{method:'POST',headers:headers(),body:JSON.stringify({ids:ids})})
+        .then(function(x){return x.json()}).then(function(d){
+          if(d&&d.results){alert(d.results.map(function(r){return (r.no||r.id)+':'+r.result}).join('\n'))}
+          else{alert('失敗:'+((d&&d.error)||'?'))}
+          $('#dmodal').classList.remove('open');load();
+        }).catch(function(){alert('連線失敗');load()});
+    }
     function showDemand(r){
       var rows=[];
       WAIT.forEach(function(o){
         o.lines.forEach(function(l){
-          if(l.barcode===r.barcode)rows.push({no:o.no,customer:o.customer,date:o.date,qty:l.qty});
+          if(l.barcode===r.barcode)rows.push({o:o,qty:l.qty});
         });
       });
-      var html='<h3>'+(r.name||r.barcode)+'</h3><p class="sub">目前庫存 '+(STOCKS[r.barcode]||0)+' 個・待配訂單需求</p>';
-      if(!rows.length){html+='<div class="empty">沒有待配訂單訂這個商品</div>'}
+      var stock=(PRODS[r.barcode]||{}).stock||0;
+      var card=$('#dcard');
+      card.innerHTML='<h3>'+(r.name||r.barcode)+'</h3><p class="sub">目前庫存 '+stock+' 個・點「配單」人工指定(整張單庫存都夠才能配)</p>'+
+        (rows.length?'':'<div class="empty">沒有待配訂單訂這個商品</div>');
       rows.forEach(function(x){
-        html+='<div class="drow"><span><b>'+x.no+'</b>　'+(x.customer||'')+'<br><small style="color:var(--muted)">'+(x.date||'')+'</small></span><span class="q">×'+x.qty+'</span></div>';
+        var can=orderAssignable(x.o);
+        var d=document.createElement('div');d.className='drow';
+        var multi=x.o.lines.length>1?('<br><small style="color:var(--muted)">整單:'+x.o.lines.map(function(l){return (l.name||l.barcode)+'×'+l.qty}).join('、')+'</small>'):'';
+        d.innerHTML='<span><b>'+x.o.no+'</b>　'+(x.o.customer||'')+'　<span class="q">×'+x.qty+'</span>'+multi+'</span>'+
+          '<span>'+(can?'<button class="btn gold sm">配單</button>':'<span class="tag no">缺貨</span>')+'</span>';
+        if(can){d.querySelector('.btn').onclick=function(){if(confirm('把庫存配給 '+x.o.no+'?'))assignIds([x.o.id],this)}}
+        card.appendChild(d);
       });
-      $('#dcard').innerHTML=html;
       $('#dmodal').classList.add('open');
     }
 
@@ -243,40 +258,33 @@
     }
 
     function renderWait(){
-      $('#waitCount').textContent=WAIT.length?('('+WAIT.length+')'):'';
-      $('#assignbar').style.display=WAIT.length?'flex':'none';
-      var box=$('#waitList');box.innerHTML='';
-      if(!WAIT.length){box.innerHTML='<div class="empty">沒有等待配貨的訂單</div>';return}
-      var l=document.createElement('div');l.className='list';
+      // 依商品彙總:{barcode:{qty,orders[]}}
+      var agg={};
       WAIT.forEach(function(o){
-        var can=o.lines.length&&o.lines.every(function(x){return (STOCKS[x.barcode]||0)>=x.qty});
-        var items=o.lines.map(function(x){return (x.name||x.barcode)+'×'+x.qty}).join('、');
-        var d=document.createElement('div');d.className='rowitem';
-        d.innerHTML='<input type="checkbox" class="chk" data-id="'+o.id+'">'+
-          '<div class="info" style="cursor:default"><b>'+o.no+'　'+(o.customer||'')+'</b><span>'+items+'　'+(o.date||'')+'</span></div>'+
-          '<span class="tag '+(can?'can':'no')+'">'+(can?'庫存夠':'缺貨中')+'</span>';
+        o.lines.forEach(function(l){
+          if(!agg[l.barcode])agg[l.barcode]={qty:0,orders:[]};
+          agg[l.barcode].qty+=l.qty;
+          if(agg[l.barcode].orders.indexOf(o.id)<0)agg[l.barcode].orders.push(o.id);
+        });
+      });
+      var barcodes=Object.keys(agg);
+      $('#waitCount').textContent=barcodes.length?('('+barcodes.length+' 商品/'+WAIT.length+' 單)'):'';
+      var box=$('#waitList');box.innerHTML='';
+      if(!barcodes.length){box.innerHTML='<div class="empty">沒有等待配貨的訂單</div>';return}
+      var l=document.createElement('div');l.className='list';
+      barcodes.forEach(function(bc){
+        var meta=PRODS[bc]||{};var a2=agg[bc];
+        var r={barcode:bc,name:meta.name||bc,img:meta.img||''};
+        var stock=meta.stock||0;
+        var d=rowEl(r,'<span class="needbadge">訂單 '+a2.qty+' 個・庫存 '+stock+'</span>'+
+          '<button class="btn gold sm autoassign">自動配單</button>');
+        d.querySelector('.autoassign').onclick=function(){
+          if(!confirm('「'+r.name+'」自動配單?(這個商品的訂單依下單順序配到庫存用完)'))return;
+          assignIds(a2.orders.slice().sort(function(x,y){return x-y}),this);
+        };
         l.appendChild(d);
       });
       box.appendChild(l);
-      $('#chkAll').checked=false;
-      $('#chkAll').onchange=function(){
-        var on=this.checked;
-        [].slice.call(box.querySelectorAll('.chk')).forEach(function(c){c.checked=on});
-      };
-      $('#assignBtn').onclick=function(){
-        var ids=[].slice.call(box.querySelectorAll('.chk')).filter(function(c){return c.checked}).map(function(c){return parseInt(c.getAttribute('data-id'),10)});
-        if(!ids.length)return alert('先勾選要配的訂單');
-        if(!confirm('對 '+ids.length+' 張訂單執行配單?(依下單順序,整單庫存夠才配,配後自動通知客人)'))return;
-        ids.sort(function(a,b){return a-b});
-        this.disabled=true;var btn=this;
-        fetch('/store/api/admin/assign',{method:'POST',headers:headers(),body:JSON.stringify({ids:ids})})
-          .then(function(x){return x.json()}).then(function(d){
-            btn.disabled=false;
-            if(d&&d.results){alert(d.results.map(function(r){return (r.no||r.id)+':'+r.result}).join('\\n'))}
-            else{alert('失敗:'+((d&&d.error)||'?'))}
-            load();
-          }).catch(function(){btn.disabled=false;alert('連線失敗');load()});
-      };
     }
 
     load();

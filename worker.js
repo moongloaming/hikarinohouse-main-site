@@ -814,9 +814,11 @@ async function adminGetWaiting(env, request, url) {
       lines,
     });
   }
-  const stocks = {};
-  for (const bc in prodMap) stocks[bc] = prodMap[bc].stock || 0;
-  return json({ orders, stocks });
+  const products = {};
+  for (const bc in prodMap) {
+    products[bc] = { name: prodMap[bc].zh || prodMap[bc].ja || "", img: prodMap[bc].img || "", stock: prodMap[bc].stock || 0 };
+  }
+  return json({ orders, products });
 }
 
 // POST /store/api/admin/assign {ids:[訂單ragicId…]} — 對勾選訂單依序配單（整單庫存夠才配）
