@@ -277,7 +277,7 @@
       if(!list.length){g.innerHTML='<div class="empty">找不到符合的商品</div>';return}
       list.forEach(function(p){
         var d=document.createElement('div');d.className='prod';
-        var thumb=p.img?('<img src="'+p.img+'" alt="">'):'🛍️';
+        var thumb=p.img?('<img src="'+p.img+'" alt="">'):'<svg viewBox="0 0 24 24" width="42" height="42" fill="none" stroke="#c9c2b4" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8h12l-1 12H7L6 8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>';
         var soldout=(p.status==='缺貨');
         var preorder=(p.status==='預購');
         var tag=soldout?'<div class="ptag out">缺貨</div>':(preorder?'<div class="ptag pre">預購</div>':'');
@@ -301,7 +301,7 @@
     var curDetail=null;
     function openDetail(p){
       curDetail=p;
-      $('#mimg').innerHTML=p.img?('<img src="'+p.img+'" alt="">'):'<span style="font-size:48px">🛍️</span>';
+      $('#mimg').innerHTML=p.img?('<img src="'+p.img+'" alt="">'):'<svg viewBox="0 0 24 24" width="56" height="56" fill="none" stroke="#c9c2b4" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8h12l-1 12H7L6 8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>';
       $('#mcat').textContent=p.cat||'';
       $('#mname').textContent=p.zh||'';
       $('#mja').textContent=p.ja||'';
