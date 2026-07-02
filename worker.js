@@ -337,6 +337,8 @@ async function getProductMap(env) {
         ja: r["產品名稱"] || "",
         feeRate: num(r["代購費率"]),
         status: r["商品狀態"] || "",
+        stock: num(r["庫存"]) || 0,
+        rid: r._ragicId,
         img: r["圖片"] ? `/store/api/img?f=${encodeURIComponent(r["圖片"])}` : "",
       };
     }
@@ -742,7 +744,7 @@ async function adminPurchaseUnarrive(env, request, url) {
   return json({ ok: true });
 }
 
-// POST /store/api/admin/arrive {id, bought} — 買到入庫（掃描器 10 分鐘內自動加庫存+配單）
+// POST /store/api/admin/arrive {id, bought} — 點收入庫：庫存「立即」入帳＋標入庫完成（配單另由「待配單」人工執行）
 async function adminPurchaseArrive(env, request, url) {
   if (!adminAuthorized(env, request, url)) return json({ error: "unauthorized" }, 401);
   let body;
@@ -750,16 +752,115 @@ async function adminPurchaseArrive(env, request, url) {
   const id = body.id;
   const bought = Math.max(0, parseInt(body.bought, 10) || 0);
   if (id == null || !bought) return json({ error: "缺 id 或 已購數量" }, 400);
+  const rResp = await fetch(ragicUrl(env, `${PURCHASE_SHEET}/${encodeURIComponent(id)}`, "api&v=3"), { headers: ragicHeaders(env) });
+  if (!rResp.ok) return json({ error: "讀取失敗" }, 502);
+  const rRaw = await rResp.json();
+  const rec = rRaw[String(id)] || Object.values(rRaw)[0];
+  if (!rec) return json({ error: "找不到採購列" }, 404);
+  if ((rec["狀態"] || "") === "入庫完成") return json({ error: "已入帳過,不能重複入庫" }, 409);
+  const barcode = String(rec["商品條碼"] || "").trim();
+  const prodMap = await getProductMap(env);
+  const prod = prodMap[barcode];
+  if (!prod) return json({ error: "賣場商品找不到條碼 " + barcode }, 404);
+  const newStock = (prod.stock || 0) + bought;
+  const sf = new URLSearchParams();
+  sf.set(FIELD.庫存, String(newStock));
+  const sResp = await fetch(ragicUrl(env, `${PRODUCT_SHEET}/${prod.rid}`, "api&v=3"), {
+    method: "POST",
+    headers: { ...ragicHeaders(env), "content-type": "application/x-www-form-urlencoded" },
+    body: sf.toString(),
+  });
+  if (!sResp.ok) return json({ error: "庫存寫入失敗" }, 502);
   const f = new URLSearchParams();
   f.set(PURCHASE_FIELD.已購數量, String(bought));
-  f.set(PURCHASE_FIELD.狀態, "已入庫");
-  const resp = await fetch(ragicUrl(env, `${PURCHASE_SHEET}/${encodeURIComponent(id)}`, "api&v=3"), {
+  f.set(PURCHASE_FIELD.狀態, "入庫完成");
+  await fetch(ragicUrl(env, `${PURCHASE_SHEET}/${encodeURIComponent(id)}`, "api&v=3"), {
     method: "POST",
     headers: { ...ragicHeaders(env), "content-type": "application/x-www-form-urlencoded" },
     body: f.toString(),
   });
-  if (!resp.ok) return json({ error: "寫入失敗" }, 502);
-  return json({ ok: true });
+  return json({ ok: true, newStock });
+}
+
+// GET /store/api/admin/waiting — 待配單（已送出,FIFO 排序）＋品項明細＋現時庫存
+async function adminGetWaiting(env, request, url) {
+  if (!adminAuthorized(env, request, url)) return json({ error: "unauthorized" }, 401);
+  const listUrl = ragicUrl(env, ORDER_SHEET, `api&v=3&where=${ORDER_FIELD.訂單狀態},eq,${encodeURIComponent("已送出")}&limit=200`);
+  const [resp, prodMap] = await Promise.all([fetch(listUrl, { headers: ragicHeaders(env) }), getProductMap(env)]);
+  if (!resp.ok) return json({ error: "Ragic 讀取失敗" }, 502);
+  const raw = await resp.json();
+  const heads = Object.values(raw)
+    .filter((r) => r && typeof r === "object" && r._ragicId !== undefined)
+    .sort((a, b) => a._ragicId - b._ragicId);
+  const orders = [];
+  for (const h of heads) {
+    const oResp = await fetch(ragicUrl(env, `${ORDER_SHEET}/${h._ragicId}`, "api&v=3"), { headers: ragicHeaders(env) });
+    if (!oResp.ok) continue;
+    const oRaw = await oResp.json();
+    const rec = oRaw[String(h._ragicId)] || Object.values(oRaw)[0];
+    const sub = (rec && rec[ORDER_SUBTABLE_KEY]) || {};
+    const lines = Object.values(sub)
+      .filter((l) => l && l["商品條碼"])
+      .map((l) => ({
+        barcode: String(l["商品條碼"]).trim(),
+        name: l["中文名稱"] || l["日文名稱"] || "",
+        qty: Number(String(l["數量"] || "0").replace(/[^0-9.]/g, "")) || 0,
+      }));
+    orders.push({
+      id: h._ragicId,
+      no: h["訂單編號"] || "",
+      customer: h["客戶名稱"] || "",
+      date: String(h._create_date || "").split(" ")[0],
+      lines,
+    });
+  }
+  const stocks = {};
+  for (const bc in prodMap) stocks[bc] = prodMap[bc].stock || 0;
+  return json({ orders, stocks });
+}
+
+// POST /store/api/admin/assign {ids:[訂單ragicId…]} — 對勾選訂單依序配單（整單庫存夠才配）
+async function adminAssign(env, request, url) {
+  if (!adminAuthorized(env, request, url)) return json({ error: "unauthorized" }, 401);
+  let body;
+  try { body = await request.json(); } catch { return json({ error: "invalid body" }, 400); }
+  const ids = Array.isArray(body.ids) ? body.ids : [];
+  if (!ids.length) return json({ error: "沒有勾選訂單" }, 400);
+  const prodMap = await getProductMap(env);
+  const stocks = {};
+  for (const bc in prodMap) stocks[bc] = prodMap[bc].stock || 0;
+  const results = [];
+  for (const id of ids.slice(0, 30)) {
+    const oResp = await fetch(ragicUrl(env, `${ORDER_SHEET}/${encodeURIComponent(id)}`, "api&v=3"), { headers: ragicHeaders(env) });
+    if (!oResp.ok) { results.push({ id, result: "讀取失敗" }); continue; }
+    const oRaw = await oResp.json();
+    const rec = oRaw[String(id)] || Object.values(oRaw)[0];
+    if (!rec || (rec["訂單狀態"] || "") !== "已送出") { results.push({ id, no: rec && rec["訂單編號"], result: "非待配狀態,略過" }); continue; }
+    const lines = Object.values(rec[ORDER_SUBTABLE_KEY] || {})
+      .filter((l) => l && l["商品條碼"])
+      .map((l) => ({ barcode: String(l["商品條碼"]).trim(), qty: Number(String(l["數量"] || "0").replace(/[^0-9.]/g, "")) || 0 }));
+    const ok = lines.length && lines.every((l) => (stocks[l.barcode] ?? -1) >= l.qty);
+    if (!ok) { results.push({ id, no: rec["訂單編號"], result: "庫存不足,略過" }); continue; }
+    for (const l of lines) {
+      stocks[l.barcode] -= l.qty;
+      const sf = new URLSearchParams();
+      sf.set(FIELD.庫存, String(stocks[l.barcode]));
+      await fetch(ragicUrl(env, `${PRODUCT_SHEET}/${prodMap[l.barcode].rid}`, "api&v=3"), {
+        method: "POST",
+        headers: { ...ragicHeaders(env), "content-type": "application/x-www-form-urlencoded" },
+        body: sf.toString(),
+      });
+    }
+    const uf = new URLSearchParams();
+    uf.set(ORDER_FIELD.訂單狀態, "已配單");
+    await fetch(ragicUrl(env, `${ORDER_SHEET}/${encodeURIComponent(id)}`, "api&v=3"), {
+      method: "POST",
+      headers: { ...ragicHeaders(env), "content-type": "application/x-www-form-urlencoded" },
+      body: uf.toString(),
+    });
+    results.push({ id, no: rec["訂單編號"], result: "已配單" });
+  }
+  return json({ ok: true, results });
 }
 
 export default {
@@ -784,6 +885,12 @@ export default {
     }
     if (p === "/store/api/admin/bought" && request.method === "POST") {
       return adminPurchaseBought(env, request, url);
+    }
+    if (p === "/store/api/admin/waiting" && request.method === "GET") {
+      return adminGetWaiting(env, request, url);
+    }
+    if (p === "/store/api/admin/assign" && request.method === "POST") {
+      return adminAssign(env, request, url);
     }
     if (p === "/store/api/products" && request.method === "GET") {
       return getProducts(env);

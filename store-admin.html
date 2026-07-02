@@ -21,32 +21,44 @@
     .btn.gold{background:var(--gold);color:#fff}
     .btn.ghost{background:#fff;border:1px solid var(--line);color:var(--muted)}
     .btn.sm{padding:8px 14px;font-size:13px;white-space:nowrap}
+    .btn[disabled]{opacity:.5;cursor:not-allowed}
     h2{font-size:14px;letter-spacing:.05em;color:var(--muted);margin:18px 0 8px;display:flex;align-items:center;gap:6px}
     h2 svg{width:17px;height:17px;flex:none}
     h2 b{color:var(--gold)}
-    /* 一行式清單 */
     .list{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden}
     .rowitem{display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--line);flex-wrap:wrap}
-    .ctrl{display:flex;align-items:center;gap:6px;margin-left:auto}
-    .step{width:32px;height:38px;border:1px solid var(--line);background:#fff;border-radius:10px;font-size:17px;font-weight:900;cursor:pointer;font-family:inherit;flex:none;line-height:1}
     .rowitem:last-child{border-bottom:none}
     .thumb{width:46px;height:46px;border-radius:10px;background:#f2ece0;flex:none;overflow:hidden;display:grid;place-items:center;cursor:pointer}
     .thumb img{width:100%;height:100%;object-fit:cover}
-    .info{flex:1;min-width:0}
+    .info{flex:1;min-width:0;cursor:pointer}
     .info b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .info span{font-size:11px;color:var(--muted);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .ctrl{display:flex;align-items:center;gap:6px;margin-left:auto;flex-wrap:wrap}
     .needbadge{font-size:13px;font-weight:900;color:var(--gold);white-space:nowrap;flex:none}
     .qty{width:46px;height:38px;border:1px solid var(--line);border-radius:10px;font-size:16px;font-weight:900;text-align:center;font-family:inherit;flex:none}
     .x{border:none;background:none;color:var(--muted);font-size:17px;cursor:pointer;padding:4px;flex:none;line-height:1}
     .tag{font-size:11px;font-weight:900;padding:3px 9px;border-radius:999px;background:#eee;color:var(--muted);white-space:nowrap;flex:none}
-    .tag.arrived{background:#fff3d6;color:var(--gold)}
+    .tag.can{background:#e7f5ec;color:var(--ok)}
+    .tag.no{background:#f3f0ea;color:var(--muted)}
     .tag.done{background:#e7f5ec;color:var(--ok)}
     .empty{color:var(--muted);font-size:13px;padding:16px;text-align:center;background:#fff;border:1px dashed var(--line);border-radius:14px}
     .hint{font-size:11px;color:var(--muted);margin-top:5px}
+    .chk{width:20px;height:20px;flex:none;accent-color:var(--gold)}
+    .assignbar{display:flex;align-items:center;gap:10px;margin:0 0 8px;font-size:13px;font-weight:800;color:var(--muted)}
     /* 圖片放大 */
     .imgview{position:fixed;inset:0;background:rgba(17,24,39,.85);z-index:60;display:none;align-items:center;justify-content:center;padding:16px}
     .imgview.open{display:flex}
     .imgview img{max-width:96vw;max-height:88vh;border-radius:14px;background:#fff}
+    /* 需求明細彈窗 */
+    .dmodal{position:fixed;inset:0;background:rgba(17,24,39,.5);z-index:55;display:none;align-items:flex-end;justify-content:center}
+    .dmodal.open{display:flex}
+    .dcard{background:#fff;border-radius:22px 22px 0 0;width:min(640px,100vw);max-height:70vh;overflow:auto;padding:18px}
+    .dcard h3{margin:0 0 4px;font-size:16px}
+    .dcard p.sub{margin:0 0 12px;font-size:12px;color:var(--muted)}
+    .drow{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);font-size:14px}
+    .drow:last-child{border-bottom:none}
+    .drow b{font-weight:900}
+    .drow .q{color:var(--gold);font-weight:900;white-space:nowrap}
     /* 通行碼閘 */
     .gate{position:fixed;inset:0;background:var(--bg);display:grid;place-items:center;z-index:50}
     .gatecard{width:min(340px,88vw);background:var(--card);border:1px solid var(--line);border-radius:24px;padding:30px;text-align:center;box-shadow:0 24px 60px rgba(17,24,39,.12)}
@@ -68,6 +80,7 @@
   </div>
 
   <div class="imgview" id="imgview"><img id="imgviewImg" alt=""></div>
+  <div class="dmodal" id="dmodal"><div class="dcard" id="dcard"></div></div>
 
   <header><div class="nav">
     <div class="brand"><span class="mark">光</span><span>採購後台<small>HIKARINOHOUSE 賣場</small></span></div>
@@ -82,11 +95,16 @@
     <div id="todayList"></div>
     <h2><svg viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5h6l1 2h3v14H5V7h3l1-2z"/><path d="M9 13l2 2 4-4"/></svg> 待點收（回公司點貨後入庫） <b id="countCount"></b></h2>
     <div id="countList"></div>
+    <p class="hint">按「入庫」= 庫存立即入帳(數字以點收為準);之後到下面「待配單」勾選配貨。</p>
     <h2><svg viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8h12l-1 12H7L6 8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg> 待採購（未排） <b id="pendCount"></b></h2>
     <div id="pendList"></div>
-    <h2><svg viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8l9-4 9 4-9 4-9-4z"/><path d="M3 8v8l9 4 9-4V8"/><path d="M12 12v8"/></svg> 已入庫(等系統入帳)</h2>
-    <div id="arrivedList"></div>
-    <p class="hint">動線:店裡按「買到」記數量 → 回公司點貨核對 → 按「入庫」→ 系統 10 分鐘內自動入帳+配單。入庫按錯可「退回」(入帳後鎖定)。</p>
+    <h2><svg viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h10"/><path d="M18 16l2 2 3-3" transform="translate(-2,0)"/></svg> 待配單（勾選後配貨） <b id="waitCount"></b></h2>
+    <div class="assignbar" id="assignbar" style="display:none">
+      <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" class="chk" id="chkAll"> 全勾</label>
+      <button class="btn gold sm" id="assignBtn" style="margin-left:auto">自動配單</button>
+    </div>
+    <div id="waitList"></div>
+    <p class="hint">勾選訂單按「自動配單」→ 依下單順序、整單庫存夠才配;配單後系統自動 LINE 通知客人結單。點商品名稱可看「誰訂了這個」。</p>
     <h2><svg viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5L16 9.5"/></svg> 最近入庫完成</h2>
     <div id="doneList"></div>
   </div>
@@ -94,6 +112,7 @@
   <script>
     var $=function(s){return document.querySelector(s)};
     var TOKEN=localStorage.getItem('storeAdminToken')||'';var TODAY='';
+    var WAIT=[];var STOCKS={};
     function headers(){return {'x-admin-token':TOKEN,'content-type':'application/json'}}
 
     function gate(show,msg){$('#gate').classList.toggle('hidden',!show);$('#gateErr').textContent=msg||''}
@@ -102,13 +121,23 @@
     $('#logoutBtn').onclick=function(){localStorage.removeItem('storeAdminToken');TOKEN='';gate(true)};
     $('#refreshBtn').onclick=function(){load()};
     $('#imgview').onclick=function(){this.classList.remove('open')};
+    $('#dmodal').onclick=function(e){if(e.target===this)this.classList.remove('open')};
 
     function load(){
       if(!TOKEN){gate(true);return}
-      fetch('/store/api/admin/purchases',{headers:headers()}).then(function(r){
-        if(r.status===401){gate(true,'通行碼不對,再試一次');localStorage.removeItem('storeAdminToken');TOKEN='';throw 0}
-        return r.json();
-      }).then(function(d){gate(false);TODAY=(d&&d.today)||'';render((d&&d.rows)||[])}).catch(function(e){if(e!==0)alert('載入失敗,請重試')});
+      Promise.all([
+        fetch('/store/api/admin/purchases',{headers:headers()}),
+        fetch('/store/api/admin/waiting',{headers:headers()})
+      ]).then(function(rs){
+        if(rs[0].status===401||rs[1].status===401){gate(true,'通行碼不對,再試一次');localStorage.removeItem('storeAdminToken');TOKEN='';throw 0}
+        return Promise.all([rs[0].json(),rs[1].json()]);
+      }).then(function(ds){
+        gate(false);
+        TODAY=(ds[0]&&ds[0].today)||'';
+        WAIT=(ds[1]&&ds[1].orders)||[];STOCKS=(ds[1]&&ds[1].stocks)||{};
+        render((ds[0]&&ds[0].rows)||[]);
+        renderWait();
+      }).catch(function(e){if(e!==0)alert('載入失敗,請重試')});
     }
 
     var BAG='<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#c9c2b4" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8h12l-1 12H7L6 8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>';
@@ -121,7 +150,23 @@
         .catch(function(){alert('連線失敗');load()});
     }
 
-    // 一行:縮圖 | 名稱/條碼 | 右側控制
+    // 商品需求明細:誰訂了這個
+    function showDemand(r){
+      var rows=[];
+      WAIT.forEach(function(o){
+        o.lines.forEach(function(l){
+          if(l.barcode===r.barcode)rows.push({no:o.no,customer:o.customer,date:o.date,qty:l.qty});
+        });
+      });
+      var html='<h3>'+(r.name||r.barcode)+'</h3><p class="sub">目前庫存 '+(STOCKS[r.barcode]||0)+' 個・待配訂單需求</p>';
+      if(!rows.length){html+='<div class="empty">沒有待配訂單訂這個商品</div>'}
+      rows.forEach(function(x){
+        html+='<div class="drow"><span><b>'+x.no+'</b>　'+(x.customer||'')+'<br><small style="color:var(--muted)">'+(x.date||'')+'</small></span><span class="q">×'+x.qty+'</span></div>';
+      });
+      $('#dcard').innerHTML=html;
+      $('#dmodal').classList.add('open');
+    }
+
     function rowEl(r,rightHtml,subHtml){
       var d=document.createElement('div');d.className='rowitem';
       d.innerHTML='<div class="thumb">'+(r.img?('<img src="'+r.img+'" alt="" loading="lazy">'):BAG)+'</div>'+
@@ -130,14 +175,8 @@
         if(!r.img)return;
         $('#imgviewImg').src=r.img;$('#imgview').classList.add('open');
       };
+      d.querySelector('.info').onclick=function(){showDemand(r)};
       return d;
-    }
-
-    function bindStep(d){
-      var inp=d.querySelector('.qty');
-      var st=d.querySelectorAll('.step');
-      st[0].onclick=function(){inp.value=Math.max(1,(parseInt(inp.value,10)||1)-1)};
-      st[1].onclick=function(){inp.value=(parseInt(inp.value,10)||0)+1};
     }
 
     function listBox(target,rowsArr,build,emptyText){
@@ -153,7 +192,6 @@
       var counting=pendAll.filter(function(r){return r.bought>0});
       var todayRows=pendAll.filter(function(r){return r.plan===TODAY&&TODAY&&r.bought<r.need});
       var pend=pendAll.filter(function(r){return !(r.plan===TODAY&&TODAY)&&!(r.bought>0)});
-      var arrived=rows.filter(function(r){return r.status==='已入庫'});
       var done=rows.filter(function(r){return r.status==='入庫完成'}).slice(0,10);
 
       $('#todayCount').textContent=todayRows.length?('('+todayRows.length+')'):'';
@@ -187,7 +225,7 @@
           '<button class="btn gold sm">入庫</button><button class="x" title="取消買到">✕</button>');
         d.querySelector('.btn.gold').onclick=function(){
           var q=parseInt(d.querySelector('.qty').value,10)||0;if(q<1)return alert('數量要 ≥1');
-          post('/store/api/admin/arrive',{id:r.id,bought:q},this,'「'+r.name+'」點收入庫 '+q+' 個?');
+          post('/store/api/admin/arrive',{id:r.id,bought:q},this,'「'+r.name+'」點收入庫 '+q+' 個?庫存會立即入帳。');
         };
         d.querySelector('.x').onclick=function(){post('/store/api/admin/bought',{id:r.id,bought:0},this,'取消「'+r.name+'」的買到紀錄?')};
         return d;
@@ -199,15 +237,46 @@
         return d;
       },'目前沒有要買的東西');
 
-      listBox('#arrivedList',arrived,function(r){
-        var d=rowEl(r,'<span class="tag arrived">已入庫 '+r.bought+'</span><button class="btn ghost sm">退回</button>');
-        d.querySelector('.btn.ghost').onclick=function(){post('/store/api/admin/unarrive',{id:r.id},this,'「'+r.name+'」退回今日清單?')};
-        return d;
-      },'－');
-
       listBox('#doneList',done,function(r){
         return rowEl(r,'<span class="tag done">完成 '+r.bought+'</span>');
       },'－');
+    }
+
+    function renderWait(){
+      $('#waitCount').textContent=WAIT.length?('('+WAIT.length+')'):'';
+      $('#assignbar').style.display=WAIT.length?'flex':'none';
+      var box=$('#waitList');box.innerHTML='';
+      if(!WAIT.length){box.innerHTML='<div class="empty">沒有等待配貨的訂單</div>';return}
+      var l=document.createElement('div');l.className='list';
+      WAIT.forEach(function(o){
+        var can=o.lines.length&&o.lines.every(function(x){return (STOCKS[x.barcode]||0)>=x.qty});
+        var items=o.lines.map(function(x){return (x.name||x.barcode)+'×'+x.qty}).join('、');
+        var d=document.createElement('div');d.className='rowitem';
+        d.innerHTML='<input type="checkbox" class="chk" data-id="'+o.id+'">'+
+          '<div class="info" style="cursor:default"><b>'+o.no+'　'+(o.customer||'')+'</b><span>'+items+'　'+(o.date||'')+'</span></div>'+
+          '<span class="tag '+(can?'can':'no')+'">'+(can?'庫存夠':'缺貨中')+'</span>';
+        l.appendChild(d);
+      });
+      box.appendChild(l);
+      $('#chkAll').checked=false;
+      $('#chkAll').onchange=function(){
+        var on=this.checked;
+        [].slice.call(box.querySelectorAll('.chk')).forEach(function(c){c.checked=on});
+      };
+      $('#assignBtn').onclick=function(){
+        var ids=[].slice.call(box.querySelectorAll('.chk')).filter(function(c){return c.checked}).map(function(c){return parseInt(c.getAttribute('data-id'),10)});
+        if(!ids.length)return alert('先勾選要配的訂單');
+        if(!confirm('對 '+ids.length+' 張訂單執行配單?(依下單順序,整單庫存夠才配,配後自動通知客人)'))return;
+        ids.sort(function(a,b){return a-b});
+        this.disabled=true;var btn=this;
+        fetch('/store/api/admin/assign',{method:'POST',headers:headers(),body:JSON.stringify({ids:ids})})
+          .then(function(x){return x.json()}).then(function(d){
+            btn.disabled=false;
+            if(d&&d.results){alert(d.results.map(function(r){return (r.no||r.id)+':'+r.result}).join('\\n'))}
+            else{alert('失敗:'+((d&&d.error)||'?'))}
+            load();
+          }).catch(function(){btn.disabled=false;alert('連線失敗');load()});
+      };
     }
 
     load();
