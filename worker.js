@@ -840,10 +840,16 @@ async function adminGetWaiting(env, request, url) {
     .filter((r) => r && typeof r === "object" && r._ragicId !== undefined)
     .sort((a, b) => a._ragicId - b._ragicId);
   const orders = [];
+  let partial = false; // 任何一張單讀失敗 → 顯示照舊,但缺口同步整個跳過(拿殘缺資料算會把需求蓋錯/誤取消)
   for (const h of heads) {
-    const oResp = await fetch(ragicUrl(env, `${ORDER_SHEET}/${h._ragicId}`, "api&v=3"), { headers: ragicHeaders(env) });
-    if (!oResp.ok) continue;
-    const oRaw = await oResp.json();
+    let oRaw = null;
+    for (let attempt = 0; attempt < 2 && !oRaw; attempt++) {
+      if (attempt) await new Promise((r) => setTimeout(r, 300));
+      const oResp = await fetch(ragicUrl(env, `${ORDER_SHEET}/${h._ragicId}`, "api&v=3"), { headers: ragicHeaders(env) });
+      if (oResp.ok) oRaw = await oResp.json().catch(() => null);
+      else console.log(`waiting: 訂單 ${h._ragicId} 讀取失敗 HTTP ${oResp.status} (attempt ${attempt + 1})`);
+    }
+    if (!oRaw) { partial = true; continue; }
     const rec = oRaw[String(h._ragicId)] || Object.values(oRaw)[0];
     const sub = (rec && rec[ORDER_SUBTABLE_KEY]) || {};
     const lines = Object.values(sub)
@@ -866,14 +872,26 @@ async function adminGetWaiting(env, request, url) {
   for (const bc in prodMap) {
     products[bc] = { name: prodMap[bc].zh || prodMap[bc].ja || "", img: prodMap[bc].img || "", stock: prodMap[bc].stock || 0 };
   }
-  // 缺口即時同步:開後台就把待採購算好(Owner 2026-07-02:「不用十分鐘 就重新整理啊」);失敗不擋頁面
-  try { await syncPurchaseShortage(env, orders, prodMap); } catch { /* 下次重整或 GAS 備援再補 */ }
+  // 缺口即時同步:開後台就把待採購算好(Owner 2026-07-02:「不用十分鐘 就重新整理啊」)
+  // 資料不完整(partial)不同步——寧可等下次重整,不能拿殘缺需求蓋掉正確值/誤取消
+  if (!partial) {
+    try { await syncPurchaseShortage(env, orders, prodMap); } catch { /* 失敗不擋頁面,下次重整再算 */ }
+  }
   return json({ orders, products });
 }
 
 // 缺口彙總 → 採購清單 upsert(原 GAS 每 10 分鐘掃,改為開採購後台當下即時算;冪等,值沒變不寫)
 // 缺口 = Σ(數量−已配) − 現有庫存;歸零/需求消失 → 該待採購列自動「取消」
+const SHORTAGE_SYNC_LOCK_URL = "https://catalog.internal/shortage-sync-lock";
 async function syncPurchaseShortage(env, orders, prodMap) {
+  // 防抖 10 秒:多人同時開後台/連續重整,只讓一個同步跑(併發寫同一批列會互踩)
+  try {
+    if (await caches.default.match(SHORTAGE_SYNC_LOCK_URL)) { console.log("sync: 防抖跳過"); return; }
+    await caches.default.put(
+      SHORTAGE_SYNC_LOCK_URL,
+      new Response("1", { headers: { "cache-control": "public, max-age=10" } })
+    );
+  } catch { /* dev 環境沒有 cache,照跑 */ }
   const demand = {}; // {barcode: 總還需數}
   for (const o of orders) {
     for (const l of o.lines) {
@@ -885,7 +903,7 @@ async function syncPurchaseShortage(env, orders, prodMap) {
     ragicUrl(env, PURCHASE_SHEET, `api&v=3&where=${PURCHASE_FIELD.狀態},eq,${encodeURIComponent("待採購")}&limit=500`),
     { headers: ragicHeaders(env) }
   );
-  if (!resp.ok) return;
+  if (!resp.ok) { console.log("sync: 待採購清單讀取失敗 HTTP " + resp.status); return; }
   const raw = await resp.json().catch(() => ({}));
   const pending = Object.values(raw).filter((r) => r && typeof r === "object" && r._ragicId !== undefined);
   const byBarcode = {};
@@ -927,6 +945,7 @@ async function syncPurchaseShortage(env, orders, prodMap) {
     const bc = String(r["商品條碼"] || "").trim();
     if (!(bc in demand)) await setRow(r._ragicId, { [PURCHASE_FIELD.狀態]: "取消" });
   }
+  console.log(`sync: 完成 demand=${JSON.stringify(demand)} pending=${pending.length} writes=${writes}`);
 }
 
 // ===== 漸進配貨（Owner 2026-07-02 指示）=====
