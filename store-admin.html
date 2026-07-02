@@ -118,10 +118,10 @@
     }
 
     // 一行:縮圖 | 名稱/條碼 | 右側控制
-    function rowEl(r,rightHtml){
+    function rowEl(r,rightHtml,subHtml){
       var d=document.createElement('div');d.className='rowitem';
       d.innerHTML='<div class="thumb">'+(r.img?('<img src="'+r.img+'" alt="" loading="lazy">'):BAG)+'</div>'+
-        '<div class="info"><b>'+(r.name||'(未命名商品)')+'</b><span>'+r.barcode+'</span></div>'+rightHtml;
+        '<div class="info"><b>'+(r.name||'(未命名商品)')+'</b><span>'+(subHtml||r.barcode)+'</span></div>'+rightHtml;
       d.querySelector('.thumb').onclick=function(){
         if(!r.img)return;
         $('#imgviewImg').src=r.img;$('#imgview').classList.add('open');
@@ -148,8 +148,9 @@
       $('#pendCount').textContent=pend.length?('('+pend.length+')'):'';
 
       listBox('#todayList',todayRows,function(r){
-        var d=rowEl(r,'<input class="qty" type="number" min="1" value="'+r.need+'">'+
-          '<button class="btn gold sm">入庫</button><button class="x" title="移出">✕</button>');
+        var d=rowEl(r,'<input class="qty" type="number" min="1" value="'+r.need+'" title="買到數量">'+
+          '<button class="btn gold sm">入庫</button><button class="x" title="移出">✕</button>',
+          '缺 <b style="color:var(--gold)">'+r.need+'</b> 個　'+r.barcode);
         d.querySelector('.btn.gold').onclick=function(){
           var q=parseInt(d.querySelector('.qty').value,10)||0;if(q<1)return alert('數量要 ≥1');
           post('/store/api/admin/arrive',{id:r.id,bought:q},this,'「'+r.name+'」入庫 '+q+' 個?');
