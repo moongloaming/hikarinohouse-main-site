@@ -40,11 +40,12 @@
     .prod{background:none;border:none;border-radius:0;box-shadow:none;overflow:hidden;display:flex;flex-direction:column}
     .thumb{aspect-ratio:1/1;background:#f0eee0;display:grid;place-items:center;color:#c9bda6;font-size:46px}
     .thumb img{width:100%;height:100%;object-fit:cover}
-    /* A 版卡片:置中、行距大、單一價格(円税込);分類/原價/費率移到詳情 */
-    .pbody{padding:18px 6px 0;display:flex;flex-direction:column;flex:1;align-items:center;text-align:center}
-    .pcat{font-size:10px;color:var(--muted);font-weight:500;letter-spacing:.24em}
-    .pname{font-size:16px;font-weight:600;font-family:var(--serif);margin:0 0 6px;line-height:1.5}
-    .pja{font-size:12px;color:var(--muted);height:2.4em;overflow:hidden;margin-bottom:14px;line-height:1.9}
+    /* Aesop 字級節奏:小(分類)→大(名稱)→中(簡介)→小(原名)→中(價格);置中、行距大 */
+    .pbody{padding:20px 8px 0;display:flex;flex-direction:column;flex:1;align-items:center;text-align:center}
+    .pcat{font-size:10px;color:var(--muted);font-weight:500;letter-spacing:.28em;margin-bottom:10px}
+    .pname{font-size:18px;font-weight:600;font-family:var(--serif);margin:0 0 8px;line-height:1.5}
+    .pdesc{font-size:13px;color:var(--muted);line-height:1.8;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:10px}
+    .pja{font-size:11px;color:var(--muted);letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;margin-bottom:12px}
     .price{font-size:15px;font-weight:500;margin-top:auto;letter-spacing:.04em;font-family:var(--serif)}
     .price small{font-size:11px;color:var(--muted);font-weight:500;white-space:nowrap}
     #sub,#fee,#total,.citem .ci-n span{font-family:var(--serif)} /* 價格數字統一襯線 */
@@ -129,6 +130,8 @@
       .me{display:none}
       .navbtns{gap:8px}
       .iconbtn{padding:7px 12px;font-size:12px}
+      .pname{font-size:15px}
+      .pdesc{font-size:12px;line-height:1.7}
     }
   </style>
 </head>
@@ -314,10 +317,15 @@
         var tag=soldout?'<div class="ptag out">缺貨</div>':(preorder?'<div class="ptag pre">預購</div>':'');
         var btn=soldout?'<button class="addbtn" disabled>暫時缺貨</button>'
                        :'<button class="addbtn">'+(preorder?'預購下單':'加入購物車')+'</button>';
+        // Aesop 字級節奏:小(分類)→大(名稱)→中(簡介=敘述)→小(日文原名)→中(價格)
+        var brief=p.desc||p.ja||'';
+        var subline=p.desc?(p.ja||''):'';
         d.innerHTML='<div class="thumb">'+thumb+tag+'</div>'+
           '<div class="pbody">'+
+          '<div class="pcat">'+(p.cat||'')+'</div>'+
           '<div class="pname">'+p.zh+'</div>'+
-          '<div class="pja">'+(p.ja||'')+'</div>'+
+          '<div class="pdesc">'+brief+'</div>'+
+          (subline?('<div class="pja">'+subline+'</div>'):'')+
           '<div class="price">'+yenTax(toHand(p))+'</div>'+
           btn+
           '</div>';
