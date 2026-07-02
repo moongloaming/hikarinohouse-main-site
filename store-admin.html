@@ -100,7 +100,7 @@
     <div id="pendList"></div>
     <h2><svg viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg> 待配單 <b id="waitCount"></b></h2>
     <div id="waitList"></div>
-    <p class="hint">「自動配單」= 這個商品的訂單依下單順序配到庫存用完(整張單都夠才配);要人工指定,點商品進去對單配。配單後系統自動 LINE 通知客人結單。</p>
+    <p class="hint">「自動配單」= 這個商品的庫存依下單順序配給等待訂單,不夠也先配一部分(客人不會收到通知);要人工指定,點商品進去對單配。品項全到齊的單才會自動 LINE 通知客人結單;下單滿 14 天沒湊齊,系統以已配到的數量結案通知。</p>
     <h2><svg viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5L16 9.5"/></svg> 最近入庫完成</h2>
     <div id="doneList"></div>
   </div>
@@ -146,37 +146,45 @@
         .catch(function(){alert('連線失敗');load()});
     }
 
-    // 商品需求明細:誰訂了這個(每張單可人工配單;整單庫存夠才可按)
-    function orderAssignable(o){
-      return o.lines.length&&o.lines.every(function(l){return ((PRODS[l.barcode]||{}).stock||0)>=l.qty});
-    }
-    function assignIds(ids,btn){
-      if(btn)btn.disabled=true;
-      fetch('/store/api/admin/assign',{method:'POST',headers:headers(),body:JSON.stringify({ids:ids})})
-        .then(function(x){return x.json()}).then(function(d){
-          if(d&&d.results){alert(d.results.map(function(r){return (r.no||r.id)+':'+r.result}).join('\n'))}
-          else{alert('失敗:'+((d&&d.error)||'?'))}
-          $('#dmodal').classList.remove('open');load();
-        }).catch(function(){alert('連線失敗');load()});
+    // 商品需求明細:誰訂了這個(漸進配貨:可分次配,不通知;品項全到齊訂單才變已配單→通知結單)
+    function allocDone(d){
+      if(d&&d.ok){
+        alert('已配 '+d.allocated+' 個('+(d.no?d.no+' ':'')+d.lineAlloc+'/'+d.lineQty+')'+
+          (d.done?'\n整單到齊 → 已配單,客人會收到結單通知':'\n還沒湊滿,先不通知'));
+      }else{alert('失敗:'+((d&&d.error)||'?'))}
+      $('#dmodal').classList.remove('open');load();
     }
     function showDemand(r){
       var rows=[];
       WAIT.forEach(function(o){
         o.lines.forEach(function(l){
-          if(l.barcode===r.barcode)rows.push({o:o,qty:l.qty});
+          if(l.barcode===r.barcode)rows.push({o:o,qty:l.qty,alloc:l.alloc||0});
         });
       });
       var stock=(PRODS[r.barcode]||{}).stock||0;
       var card=$('#dcard');
-      card.innerHTML='<h3>'+(r.name||r.barcode)+'</h3><p class="sub">目前庫存 '+stock+' 個・點「配單」人工指定(整張單庫存都夠才能配)</p>'+
+      card.innerHTML='<h3>'+(r.name||r.barcode)+'</h3><p class="sub">目前庫存 '+stock+' 個・可分次配貨(品項全到齊才會通知客人結單)</p>'+
         (rows.length?'':'<div class="empty">沒有待配訂單訂這個商品</div>');
       rows.forEach(function(x){
-        var can=orderAssignable(x.o);
+        var remain=Math.max(0,x.qty-x.alloc);
         var d=document.createElement('div');d.className='drow';
-        var multi=x.o.lines.length>1?('<br><small style="color:var(--muted)">整單:'+x.o.lines.map(function(l){return (l.name||l.barcode)+'×'+l.qty}).join('、')+'</small>'):'';
-        d.innerHTML='<span><b>'+x.o.no+'</b>　'+(x.o.customer||'')+'　<span class="q">×'+x.qty+'</span>'+multi+'</span>'+
-          '<span>'+(can?'<button class="btn gold sm">配單</button>':'<span class="tag no">缺貨</span>')+'</span>';
-        if(can){d.querySelector('.btn').onclick=function(){if(confirm('把庫存配給 '+x.o.no+'?'))assignIds([x.o.id],this)}}
+        var multi=x.o.lines.length>1?('<br><small style="color:var(--muted)">整單:'+x.o.lines.map(function(l){return (l.name||l.barcode)+'×'+l.qty+((l.alloc||0)>0?('(已配'+l.alloc+')'):'')}).join('、')+'</small>'):'';
+        var def=Math.min(stock,remain);
+        var right=remain<=0?'<span class="tag done">已配滿</span>'
+          :def<=0?'<span class="tag no">缺貨</span>'
+          :'<input class="qty" type="number" min="1" max="'+remain+'" value="'+def+'" title="這次配幾個"><button class="btn gold sm">配</button>';
+        d.innerHTML='<span><b>'+x.o.no+'</b>　'+(x.o.customer||'')+'　<span class="q">×'+x.qty+(x.alloc>0?('(已配'+x.alloc+')'):'')+'</span>'+multi+'</span>'+
+          '<span style="display:flex;gap:6px;align-items:center">'+right+'</span>';
+        if(remain>0&&def>0){d.querySelector('.btn').onclick=function(){
+          var q=parseInt(d.querySelector('.qty').value,10)||0;
+          if(q<1)return alert('數量要 ≥1');
+          if(q>remain)return alert('最多還能配 '+remain+' 個');
+          if(!confirm('配 '+q+' 個給 '+x.o.no+'?'+(q<remain?'(還缺 '+(remain-q)+' 個,先不通知)':'')))return;
+          var btn=this;btn.disabled=true;
+          fetch('/store/api/admin/allocate',{method:'POST',headers:headers(),body:JSON.stringify({id:x.o.id,barcode:r.barcode,qty:q})})
+            .then(function(rr){return rr.json()}).then(allocDone)
+            .catch(function(){alert('連線失敗');load()});
+        }}
         card.appendChild(d);
       });
       $('#dmodal').classList.add('open');
@@ -258,16 +266,16 @@
     }
 
     function renderWait(){
-      // 依商品彙總:{barcode:{qty,orders[]}}
+      // 依商品彙總還需數:{barcode:{need,alloc}}(need=Σ(數量−已配))
       var agg={};
       WAIT.forEach(function(o){
         o.lines.forEach(function(l){
-          if(!agg[l.barcode])agg[l.barcode]={qty:0,orders:[]};
-          agg[l.barcode].qty+=l.qty;
-          if(agg[l.barcode].orders.indexOf(o.id)<0)agg[l.barcode].orders.push(o.id);
+          if(!agg[l.barcode])agg[l.barcode]={need:0,alloc:0};
+          agg[l.barcode].need+=Math.max(0,l.qty-(l.alloc||0));
+          agg[l.barcode].alloc+=(l.alloc||0);
         });
       });
-      var barcodes=Object.keys(agg);
+      var barcodes=Object.keys(agg).filter(function(bc){return agg[bc].need>0});
       $('#waitCount').textContent=barcodes.length?('('+barcodes.length+' 商品/'+WAIT.length+' 單)'):'';
       var box=$('#waitList');box.innerHTML='';
       if(!barcodes.length){box.innerHTML='<div class="empty">沒有等待配貨的訂單</div>';return}
@@ -276,11 +284,20 @@
         var meta=PRODS[bc]||{};var a2=agg[bc];
         var r={barcode:bc,name:meta.name||bc,img:meta.img||''};
         var stock=meta.stock||0;
-        var d=rowEl(r,'<span class="needbadge">訂單 '+a2.qty+' 個・庫存 '+stock+'</span>'+
-          '<button class="btn gold sm autoassign">自動配單</button>');
+        var d=rowEl(r,'<span class="needbadge">訂單 '+a2.need+' 個・庫存 '+stock+'</span>'+
+          '<button class="btn gold sm autoassign"'+(stock<=0?' disabled':'')+'>自動配單</button>',
+          (a2.alloc>0?('已配 '+a2.alloc+'　'):'')+bc);
         d.querySelector('.autoassign').onclick=function(){
-          if(!confirm('「'+r.name+'」自動配單?(這個商品的訂單依下單順序配到庫存用完)'))return;
-          assignIds(a2.orders.slice().sort(function(x,y){return x-y}),this);
+          if(!confirm('「'+r.name+'」自動配單?(庫存 '+stock+' 個依下單順序配給等待訂單,可部分配;湊滿的單才通知)'))return;
+          var btn=this;btn.disabled=true;
+          fetch('/store/api/admin/autoallocate',{method:'POST',headers:headers(),body:JSON.stringify({barcode:bc})})
+            .then(function(x){return x.json()}).then(function(dd){
+              if(dd&&dd.ok){
+                var msg=dd.results.map(function(rr){return rr.no+':配 '+rr.allocated+' 個'+(rr.done?'(到齊→通知結單)':'(未滿,不通知)')}).join('\n');
+                alert('配了 '+dd.used+' 個,剩庫存 '+dd.left+' 個\n'+(msg||'(沒有可配的訂單)'));
+              }else{alert('失敗:'+((dd&&dd.error)||'?'))}
+              load();
+            }).catch(function(){alert('連線失敗');load()});
         };
         l.appendChild(d);
       });
