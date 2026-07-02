@@ -272,7 +272,7 @@
       LAST_ROWS=rows;
       var pendAll=rows.filter(function(r){return r.status==='待採購'&&r.need>0});
       var counting=pendAll.filter(function(r){return r.bought>0});
-      var todayAll=pendAll.filter(function(r){return r.plan===TODAY&&TODAY&&r.bought<r.need});
+      var todayAll=pendAll.filter(function(r){return r.plan===TODAY&&TODAY&&r.bought<(r.target||r.need)});
       // 我的=自己認領的+沒人認領的(不讓東西漏掉);沒設名字就看全部
       var mineRows=todayAll.filter(function(r){return !r.owner||r.owner===ME});
       var todayRows=(ME&&(localStorage.getItem('storeAdminMine')||'mine')==='mine')?mineRows:todayAll;
@@ -285,14 +285,15 @@
       $('#pendCount').textContent=pend.length||'';
 
       listBox('#todayList',todayRows,function(r){
-        var left=r.need-r.bought;
-        var d=rowEl(r,'<span class="needbadge">'+(r.bought>0?('還差 '+left+' 個'):('缺 '+r.need+' 個'))+'</span>'+
+        var goal=r.target||r.need; // 今日目標;沒指定=缺口全數
+        var left=goal-r.bought;
+        var d=rowEl(r,'<span class="needbadge">'+(r.bought>0?('還差 '+left+' 個'):(r.target&&r.target<r.need?('今天買 '+goal+' 個'):('缺 '+r.need+' 個')))+'</span>'+
           '<input class="qty" type="number" min="0" value="0" title="這次買到幾個">'+
           '<button class="btn ghost sm plus1">+1</button><button class="btn ghost sm plus3">+3</button>'+
           '<button class="btn gold sm">買到</button>'+
           '<button class="btn dark sm allbuy">全買到</button>'+
           '<button class="x" title="移出">✕</button>',
-          (r.owner?('👤'+r.owner+'　'):'')+(r.bought>0?('已買 '+r.bought+'　'):'')+r.barcode);
+          (r.owner?('👤'+r.owner+'　'):'')+(r.target&&r.target<r.need?('缺 '+r.need+'・目標 '+r.target+'　'):'')+(r.bought>0?('已買 '+r.bought+'　'):'')+r.barcode);
         var inp=d.querySelector('.qty');
         d.querySelector('.btn.gold').onclick=function(){
           var q=parseInt(inp.value,10)||0;if(q<1)return alert('數量要 ≥1');
@@ -300,7 +301,7 @@
         };
         d.querySelector('.plus1').onclick=function(){inp.value=(parseInt(inp.value,10)||0)+1};
         d.querySelector('.plus3').onclick=function(){inp.value=(parseInt(inp.value,10)||0)+3};
-        d.querySelector('.allbuy').onclick=function(){post('/store/api/admin/bought',{id:r.id,add:Math.max(0,r.need-r.bought)},this)};
+        d.querySelector('.allbuy').onclick=function(){post('/store/api/admin/bought',{id:r.id,add:Math.max(0,goal-r.bought)},this)};
         d.querySelector('.x').onclick=function(){post('/store/api/admin/plan',{id:r.id,plan:false},this)};
         return d;
       },'還沒排今天要買的,從下面按「排今天」');
@@ -319,10 +320,14 @@
       },'－');
 
       listBox('#pendList',pend,function(r){
-        var d=rowEl(r,'<span class="needbadge">×'+r.need+'</span><button class="btn dark sm">排今天</button>');
+        var d=rowEl(r,'<span class="needbadge">缺 '+r.need+' 個</span>'+
+          '<input class="qty" type="number" min="1" value="'+r.need+'" title="今天要買幾個">'+
+          '<button class="btn dark sm">排今天</button>');
         d.querySelector('.btn.dark').onclick=function(){
           if(!ME){setMe();if(!ME)return} // 先報名字才能認領
-          post('/store/api/admin/plan',{id:r.id,plan:true,owner:ME},this);
+          var q=parseInt(d.querySelector('.qty').value,10)||0;
+          if(q<1)return alert('數量要 ≥1');
+          post('/store/api/admin/plan',{id:r.id,plan:true,owner:ME,qty:q},this);
         };
         return d;
       },'目前沒有要買的東西');

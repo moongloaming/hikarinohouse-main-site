@@ -698,6 +698,7 @@ const PURCHASE_FIELD = {
   狀態: "1003021",
   預計採購日: "1003023",
   負責人: "1003025", // 採購認領:排今天時寫入,每列單一寫入者(D-027)
+  今日目標: "1003026", // 排今天時指定「今天要買幾個」(可小於缺口;沒買到的部分入庫後缺口自動回到待採購)
 };
 
 function adminAuthorized(env, request, url) {
@@ -728,6 +729,7 @@ async function adminGetPurchases(env, request, url) {
       status: r["狀態"] || "",
       plan: r["預計採購日"] || "", // 空=未排;yyyy/MM/dd=已排
       owner: r["負責人"] || "",    // 排今天時認領;空=未認領
+      target: num(r["今日目標"]),  // 今天要買幾個;0/空=以缺口全數為目標
     }))
     .sort((a, b) => b.id - a.id);
   return json({ rows, today: jstToday() });
@@ -737,15 +739,18 @@ function jstToday() {
   return new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10).replace(/-/g, "/");
 }
 
-// POST /store/api/admin/plan {id, plan:true|false, owner} — 排進/移出「今日採購清單」(排入=認領給 owner;移出=清空認領)
+// POST /store/api/admin/plan {id, plan:true|false, owner, qty} — 排進/移出「今日採購清單」
+// 排入=認領給 owner＋指定今日目標數量(可小於缺口);移出=認領/目標一併清空
 async function adminPurchasePlan(env, request, url) {
   if (!adminAuthorized(env, request, url)) return json({ error: "unauthorized" }, 401);
   let body;
   try { body = await request.json(); } catch { return json({ error: "invalid body" }, 400); }
   if (body.id == null) return json({ error: "缺 id" }, 400);
+  const qty = Math.max(0, parseInt(body.qty, 10) || 0);
   const f = new URLSearchParams();
   f.set(PURCHASE_FIELD.預計採購日, body.plan ? jstToday() : "");
   f.set(PURCHASE_FIELD.負責人, body.plan ? String(body.owner || "").trim().slice(0, 20) : "");
+  f.set(PURCHASE_FIELD.今日目標, body.plan && qty > 0 ? String(qty) : "");
   const resp = await fetch(ragicUrl(env, `${PURCHASE_SHEET}/${encodeURIComponent(body.id)}`, "api&v=3"), {
     method: "POST",
     headers: { ...ragicHeaders(env), "content-type": "application/x-www-form-urlencoded" },
