@@ -53,8 +53,11 @@ const ORDER_FIELD = {
   匯率: "1003010",     // JPY→TWD 匯率快照（下單當下寫入，之後不變）
 };
 
-// 匯率來源：sales_ledger 業務專案每日更新的台銀 JPY 現金賣出匯率（公開發布 CSV）
-// 欄位：日期,幣別,現金賣出匯率,資料來源,查詢時間 JST,備註
+// 匯率來源（雙保險）：
+// 1) Ragic 賣場「匯率」表 store/6 —— line_gas_fix 每日 06 時從 Google Sheet 同步進來（營運可見、可人工補列）
+// 2) 備援：直讀 sales_ledger 每日更新的台銀 JPY 現金賣出匯率 CSV
+const RATE_SHEET = "store/6";
+const RATE_FIELD = { 日期: "1003011", 幣別: "1003012", 現金賣出匯率: "1003013" };
 const RATE_CSV_URL =
   "https://docs.google.com/spreadsheets/d/1b_MeMAZwehA7OUa6dfBLMGkEoXBHi9tJ-VmVe-sAJT8/export?format=csv&gid=412630458";
 // 讀訂單時，明細子表格在單筆記錄回傳的 key（forms API 單筆讀）
@@ -162,13 +165,40 @@ async function getProducts(env) {
       };
     })
     .filter((p) => VISIBLE_STATUS.includes(p.status));
-  const [feeRate, categories, jpyRate] = await Promise.all([getFeeRate(env), getCategories(env), getJpyRate()]);
+  const [feeRate, categories, jpyRate] = await Promise.all([getFeeRate(env), getCategories(env), getJpyRate(env)]);
   return json({ products, feeRate, categories, jpyRate });
 }
 
-// 讀 JPY→TWD 匯率（sales_ledger 每日更新的公開 CSV）；取日期最新的 JPY 列。
+// 讀 JPY→TWD 匯率：Ragic 優先、CSV 備援；取日期最新的 JPY 列。
 // 讀不到回 null（前端不顯示台幣參考價、下單不寫匯率快照——不擋交易）。
-async function getJpyRate() {
+async function getJpyRate(env) {
+  const fromRagic = await getJpyRateFromRagic(env);
+  if (fromRagic) return fromRagic;
+  return getJpyRateFromCsv();
+}
+
+async function getJpyRateFromRagic(env) {
+  try {
+    if (!env || !env.RAGIC_API_KEY) return null;
+    const q = `api&v=3&where=${RATE_FIELD.幣別},eq,JPY&limit=500`;
+    const resp = await fetch(ragicUrl(env, RATE_SHEET, q), { headers: ragicHeaders(env), cf: { cacheTtl: 900 } });
+    if (!resp.ok) return null;
+    const raw = await resp.json();
+    let best = null;
+    for (const r of Object.values(raw)) {
+      if (!r || typeof r !== "object" || r._ragicId === undefined) continue;
+      const rate = Number(String(r["現金賣出匯率"] || "").replace(/[^0-9.]/g, ""));
+      const date = String(r["日期"] || "").trim();
+      if (!(rate > 0)) continue;
+      if (!best || date > best.date) best = { date, rate };
+    }
+    return best ? best.rate : null;
+  } catch {
+    return null;
+  }
+}
+
+async function getJpyRateFromCsv() {
   try {
     const resp = await fetch(RATE_CSV_URL, { redirect: "follow", cf: { cacheTtl: 1800, cacheEverything: true } });
     if (!resp.ok) return null;
@@ -351,7 +381,7 @@ async function createOrder(env, request) {
     getProductMap(env),
     getFeeRate(env),
     getCustomer(env, body.lineUserId),
-    getJpyRate(),
+    getJpyRate(env),
   ]);
   // 會員等級費率（找得到客戶才查）；費率決定序：商品指定 > 會員等級 > 全站
   const memberRate = customer ? await getTierFeeRate(env, customer.tier) : null;
@@ -429,7 +459,7 @@ async function checkout(env, request) {
   let rate = Number(String(order["匯率"] || "").replace(/[^0-9.]/g, "")) || 0;
   let rateFetched = false;
   if (!rate) {
-    rate = (await getJpyRate()) || 0;
+    rate = (await getJpyRate(env)) || 0;
     rateFetched = rate > 0;
   }
   const yenTotal = Number(String(order["訂單金額"] || "0").replace(/[^0-9.]/g, "")) || 0;
