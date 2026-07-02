@@ -43,6 +43,14 @@
     .tag.done{background:#e7f5ec;color:var(--ok)}
     .empty{color:var(--muted);font-size:13px;padding:16px;text-align:center;background:#fff;border:1px dashed var(--line);border-radius:14px}
     .hint{font-size:11px;color:var(--muted);margin-top:5px}
+    /* 分頁列(黏在 header 下方,手機可橫捲) */
+    .tabs{overflow-x:auto;-webkit-overflow-scrolling:touch;border-top:1px solid var(--line)}
+    .tabsinner{max-width:640px;margin:auto;display:flex;gap:6px;padding:8px 12px;white-space:nowrap}
+    .tab{border:1px solid var(--line);background:#fff;color:var(--muted);border-radius:999px;padding:8px 13px;font-weight:900;font-size:13px;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:5px;flex:none}
+    .tab.on{background:var(--deep);color:#fff;border-color:var(--deep)}
+    .tab b{min-width:18px;height:18px;border-radius:999px;background:var(--gold);color:#fff;font-size:11px;font-style:normal;display:grid;place-items:center;padding:0 5px}
+    .tab b:empty{display:none}
+    .pane{display:none}
     .chk{width:20px;height:20px;flex:none;accent-color:var(--gold)}
     .assignbar{display:flex;align-items:center;gap:10px;margin:0 0 8px;font-size:13px;font-weight:800;color:var(--muted)}
     /* 圖片放大 */
@@ -88,21 +96,40 @@
       <button class="btn ghost sm" id="refreshBtn">重新整理</button>
       <button class="btn ghost sm" id="logoutBtn" title="登出">✕</button>
     </div>
-  </div></header>
+  </div>
+  <div class="tabs"><div class="tabsinner">
+    <button class="tab" data-pane="today">今日買貨<b id="todayCount"></b></button>
+    <button class="tab" data-pane="count">點收入庫<b id="countCount"></b></button>
+    <button class="tab" data-pane="pend">待採購<b id="pendCount"></b></button>
+    <button class="tab" data-pane="wait">配貨<b id="waitCount"></b></button>
+    <button class="tab" data-pane="done">已完成</button>
+  </div></div></header>
 
   <div class="wrap">
-    <h2><svg viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="16" rx="3"/><path d="M8 3v4M16 3v4M4 10h16"/><path d="M9 15l2 2 4-4"/></svg> 今日採購清單 <b id="todayCount"></b></h2>
-    <div id="todayList"></div>
-    <h2><svg viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5h6l1 2h3v14H5V7h3l1-2z"/><path d="M9 13l2 2 4-4"/></svg> 待點收（回公司點貨後入庫） <b id="countCount"></b></h2>
-    <div id="countList"></div>
-    <p class="hint">按「入庫」= 庫存立即入帳(數字以點收為準);之後到下面「待配單」勾選配貨。</p>
-    <h2><svg viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8h12l-1 12H7L6 8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg> 待採購（未排） <b id="pendCount"></b></h2>
-    <div id="pendList"></div>
-    <h2><svg viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg> 待配單 <b id="waitCount"></b></h2>
-    <div id="waitList"></div>
-    <p class="hint">「自動配單」= 這個商品的庫存依下單順序配給等待訂單,不夠也先配一部分(客人不會收到通知);要人工指定,點商品進去對單配。品項全到齊的單才會自動 LINE 通知客人結單;下單滿 14 天沒湊齊,系統以已配到的數量結案通知。</p>
-    <h2><svg viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5L16 9.5"/></svg> 最近入庫完成</h2>
-    <div id="doneList"></div>
+    <div class="pane" id="pane-today">
+      <h2><svg viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="16" rx="3"/><path d="M8 3v4M16 3v4M4 10h16"/><path d="M9 15l2 2 4-4"/></svg> 今日採購清單</h2>
+      <div id="todayList"></div>
+      <p class="hint">在店裡買到幾個就填幾個按「買到」(可跨店累加);一次買齊按「全買到」。要買的東西從「待採購」分頁按「排今天」加進來。</p>
+    </div>
+    <div class="pane" id="pane-count">
+      <h2><svg viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5h6l1 2h3v14H5V7h3l1-2z"/><path d="M9 13l2 2 4-4"/></svg> 待點收（回公司點貨後入庫）</h2>
+      <div id="countList"></div>
+      <p class="hint">按「入庫」= 庫存立即入帳(數字以點收為準);之後到「配貨」分頁配給訂單。</p>
+    </div>
+    <div class="pane" id="pane-pend">
+      <h2><svg viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8h12l-1 12H7L6 8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg> 待採購（未排）</h2>
+      <div id="pendList"></div>
+      <p class="hint">客人下單缺貨會自動出現在這裡;按「排今天」加入今日買貨。</p>
+    </div>
+    <div class="pane" id="pane-wait">
+      <h2><svg viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg> 待配單</h2>
+      <div id="waitList"></div>
+      <p class="hint">「自動配單」= 這個商品的庫存依下單順序配給等待訂單,不夠也先配一部分(客人不會收到通知);要人工指定,點商品進去對單配。品項全到齊的單才會自動 LINE 通知客人結單;下單滿 14 天沒湊齊,系統以已配到的數量結案通知。</p>
+    </div>
+    <div class="pane" id="pane-done">
+      <h2><svg viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5L16 9.5"/></svg> 最近入庫完成</h2>
+      <div id="doneList"></div>
+    </div>
   </div>
 
   <script>
@@ -219,9 +246,9 @@
       var pend=pendAll.filter(function(r){return !(r.plan===TODAY&&TODAY)&&!(r.bought>0)});
       var done=rows.filter(function(r){return r.status==='入庫完成'}).slice(0,10);
 
-      $('#todayCount').textContent=todayRows.length?('('+todayRows.length+')'):'';
-      $('#countCount').textContent=counting.length?('('+counting.length+')'):'';
-      $('#pendCount').textContent=pend.length?('('+pend.length+')'):'';
+      $('#todayCount').textContent=todayRows.length||'';
+      $('#countCount').textContent=counting.length||'';
+      $('#pendCount').textContent=pend.length||'';
 
       listBox('#todayList',todayRows,function(r){
         var left=r.need-r.bought;
@@ -278,7 +305,7 @@
         });
       });
       var barcodes=Object.keys(agg).filter(function(bc){return agg[bc].need>0});
-      $('#waitCount').textContent=barcodes.length?('('+barcodes.length+' 商品/'+WAIT.length+' 單)'):'';
+      $('#waitCount').textContent=barcodes.length||'';
       var box=$('#waitList');box.innerHTML='';
       if(!barcodes.length){box.innerHTML='<div class="empty">沒有等待配貨的訂單</div>';return}
       var l=document.createElement('div');l.className='list';
@@ -305,6 +332,17 @@
       });
       box.appendChild(l);
     }
+
+    // 分頁切換(記住上次停在哪一頁)
+    var PANES=['today','count','pend','wait','done'];
+    function showTab(name){
+      if(PANES.indexOf(name)<0)name='today';
+      localStorage.setItem('storeAdminTab',name);
+      PANES.forEach(function(t){$('#pane-'+t).style.display=(t===name)?'block':'none'});
+      [].slice.call(document.querySelectorAll('.tab')).forEach(function(b){b.classList.toggle('on',b.getAttribute('data-pane')===name)});
+    }
+    [].slice.call(document.querySelectorAll('.tab')).forEach(function(b){b.onclick=function(){showTab(b.getAttribute('data-pane'))}});
+    showTab(localStorage.getItem('storeAdminTab')||'today');
 
     load();
   </script>
