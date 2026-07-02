@@ -388,7 +388,7 @@ async function createOrder(env, request) {
   const memberRate = customer ? await getTierFeeRate(env, customer.tier) : null;
 
   const form = new URLSearchParams();
-  form.set(ORDER_FIELD.訂單狀態, "尚未下訂"); // 剛送出＝客戶尚未結單
+  form.set(ORDER_FIELD.訂單狀態, "已送出"); // 客戶送出訂單（→配單→已配單→結單…）
   if (body.lineUserId) form.set(ORDER_FIELD.LINE_UserId, body.lineUserId);
   if (customer) {
     if (customer.code) form.set(ORDER_FIELD.客戶編號, customer.code); // 綁到客戶名單
